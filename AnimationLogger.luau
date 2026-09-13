@@ -37,13 +37,13 @@ if not ParentGui then
     ParentGui = LocalPlayer:WaitForChild("PlayerGui")
 end
 
-local OldGui = ParentGui:FindFirstChild("AnimLoggerUI_🗿")
+local OldGui = ParentGui:FindFirstChild("AnimTrackerUI_🗿") or ParentGui:FindFirstChild("AnimLoggerUI_🗿")
 if OldGui then
     OldGui:Destroy()
 end
 
 local ScreenGui = Instance.new("ScreenGui")
-ScreenGui.Name = "AnimLoggerUI_🗿"
+ScreenGui.Name = "AnimTrackerUI_🗿"
 ScreenGui.DisplayOrder = 500
 ScreenGui.ResetOnSpawn = false
 ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
@@ -137,10 +137,10 @@ end
 if GetEnv.InitAdvancedAnimationLogger then
     local MainFrame = Instance.new("Frame")
     MainFrame.Name = "MainFrame"
-    MainFrame.BackgroundColor3 = Color3.fromRGB(24, 24, 24)
+    MainFrame.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
     MainFrame.BorderSizePixel = 0
-    MainFrame.Position = UDim2.new(0.05, 0, 0.2, 0)
-    MainFrame.Size = UDim2.new(0, 360, 0, 400)
+    MainFrame.Position = UDim2.new(0.08, 0, 0.15, 0)
+    MainFrame.Size = UDim2.new(0, 370, 0, 420)
     MainFrame.Active = true
     MainFrame.Parent = ScreenGui
 
@@ -148,57 +148,42 @@ if GetEnv.InitAdvancedAnimationLogger then
     MainCorner.CornerRadius = UDim.new(0, 4)
     MainCorner.Parent = MainFrame
 
-    local MainStroke = Instance.new("UIStroke")
-    MainStroke.Color = Color3.fromRGB(50, 50, 50)
-    MainStroke.Thickness = 1
-    MainStroke.Parent = MainFrame
-
-    local DragBar = Instance.new("Frame")
-    DragBar.Name = "DragBar"
-    DragBar.BackgroundColor3 = Color3.fromRGB(18, 18, 18)
-    DragBar.BorderSizePixel = 0
-    DragBar.Size = UDim2.new(1, 0, 0, 26)
-    DragBar.Parent = MainFrame
-
-    local DragCorner = Instance.new("UICorner")
-    DragCorner.CornerRadius = UDim.new(0, 4)
-    DragCorner.Parent = DragBar
+    local TitleBar = Instance.new("Frame")
+    TitleBar.Name = "TitleBar"
+    TitleBar.BackgroundTransparency = 1
+    TitleBar.Size = UDim2.new(1, 0, 0, 28)
+    TitleBar.Parent = MainFrame
 
     local TitleLabel = Instance.new("TextLabel")
     TitleLabel.Name = "TitleLabel"
     TitleLabel.BackgroundTransparency = 1
     TitleLabel.Size = UDim2.new(1, 0, 1, 0)
-    TitleLabel.Font = Enum.Font.RobotoMono
+    TitleLabel.Font = Enum.Font.Code
     TitleLabel.TextSize = 13
     TitleLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
     TitleLabel.Text = "Animation Tracker (0 unique)"
-    TitleLabel.Parent = DragBar
+    TitleLabel.TextXAlignment = Enum.TextXAlignment.Center
+    TitleLabel.Parent = TitleBar
 
-    MakeDraggable(MainFrame, DragBar)
+    MakeDraggable(MainFrame, TitleBar)
 
     local ScrollFrame = Instance.new("ScrollingFrame")
     ScrollFrame.Name = "AnimationList"
-    ScrollFrame.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
+    ScrollFrame.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+    ScrollFrame.BackgroundTransparency = 1
     ScrollFrame.BorderSizePixel = 0
-    ScrollFrame.Position = UDim2.new(0, 0, 0, 26)
-    ScrollFrame.Size = UDim2.new(1, 0, 1, -26)
+    ScrollFrame.Position = UDim2.new(0, 8, 0, 28)
+    ScrollFrame.Size = UDim2.new(1, -12, 1, -34)
     ScrollFrame.AutomaticCanvasSize = Enum.AutomaticSize.Y
     ScrollFrame.CanvasSize = UDim2.new(0, 0, 0, 0)
-    ScrollFrame.ScrollBarThickness = 4
-    ScrollFrame.ScrollBarImageColor3 = Color3.fromRGB(60, 60, 60)
+    ScrollFrame.ScrollBarThickness = 5
+    ScrollFrame.ScrollBarImageColor3 = Color3.fromRGB(120, 120, 120)
     ScrollFrame.Parent = MainFrame
 
     local ListLayout = Instance.new("UIListLayout")
-    ListLayout.Padding = UDim.new(0, 3)
+    ListLayout.Padding = UDim.new(0, 10)
     ListLayout.SortOrder = Enum.SortOrder.LayoutOrder
     ListLayout.Parent = ScrollFrame
-
-    local ListPadding = Instance.new("UIPadding")
-    ListPadding.PaddingLeft = UDim.new(0, 6)
-    ListPadding.PaddingRight = UDim.new(0, 6)
-    ListPadding.PaddingTop = UDim.new(0, 6)
-    ListPadding.PaddingBottom = UDim.new(0, 6)
-    ListPadding.Parent = ScrollFrame
 
     local UniqueCount = 0
     local AdvancedEntries: {
@@ -206,14 +191,18 @@ if GetEnv.InitAdvancedAnimationLogger then
             Plays: number,
             Last: string,
             Sources: { [string]: boolean },
+            TitleLabel: TextLabel,
             StatsLabel: TextLabel,
             SourcesLabel: TextLabel,
         }
     } = {}
 
     local function LogAdvancedAnimation(Player: Player, Track: AnimationTrack, StrId: string, NumId: number)
-        local RawId = Track.Animation and Track.Animation.AnimationId or ("rbxassetid://" .. StrId)
-        local SourcePath = Player.Character and Player.Character:GetFullName() .. ".Humanoid" or (Player.Name .. ".Humanoid")
+        local RawId = (Track.Animation and Track.Animation.AnimationId ~= "" and Track.Animation.AnimationId) or ("rbxassetid://" .. StrId)
+        local SourcePath = Player.Character and ("Workspace.Players." .. Player.Name .. ".Humanoid") or ("Workspace.Players." .. Player.Name .. ".Humanoid")
+        if Track.Name and Track.Name ~= "" and Track.Name ~= "Animation" then
+            SourcePath = SourcePath .. " (" .. Track.Name .. ")"
+        end
 
         if AdvancedEntries[StrId] then
             local Entry = AdvancedEntries[StrId]
@@ -234,85 +223,78 @@ if GetEnv.InitAdvancedAnimationLogger then
         UniqueCount += 1
         TitleLabel.Text = string.format("Animation Tracker (%d unique)", UniqueCount)
 
-        local Card = Instance.new("TextButton")
-        Card.Name = "Entry_" .. StrId
-        Card.BackgroundColor3 = Color3.fromRGB(28, 28, 28)
-        Card.BorderSizePixel = 0
-        Card.Size = UDim2.new(1, 0, 0, 72)
-        Card.Text = ""
-        Card.AutoButtonColor = true
-        Card.Parent = ScrollFrame
+        local EntryContainer = Instance.new("TextButton")
+        EntryContainer.Name = "Entry_" .. StrId
+        EntryContainer.BackgroundTransparency = 1
+        EntryContainer.BorderSizePixel = 0
+        EntryContainer.Size = UDim2.new(1, -6, 0, 64)
+        EntryContainer.Text = ""
+        EntryContainer.AutoButtonColor = false
+        EntryContainer.Parent = ScrollFrame
 
-        local CardCorner = Instance.new("UICorner")
-        CardCorner.CornerRadius = UDim.new(0, 4)
-        CardCorner.Parent = Card
+        local DisplayName = (Track.Name and Track.Name ~= "" and Track.Name) or "Animation"
 
-        local CardStroke = Instance.new("UIStroke")
-        CardStroke.Color = Color3.fromRGB(40, 40, 40)
-        CardStroke.Thickness = 1
-        CardStroke.Parent = Card
+        local Line1 = Instance.new("TextLabel")
+        Line1.Name = "Line1"
+        Line1.BackgroundTransparency = 1
+        Line1.Position = UDim2.new(0, 0, 0, 0)
+        Line1.Size = UDim2.new(1, 0, 0, 15)
+        Line1.Font = Enum.Font.Code
+        Line1.TextSize = 12
+        Line1.TextColor3 = Color3.fromRGB(225, 225, 225)
+        Line1.TextXAlignment = Enum.TextXAlignment.Left
+        Line1.TextTruncate = Enum.TextTruncate.AtEnd
+        Line1.Text = DisplayName
+        Line1.Parent = EntryContainer
 
-        local NameLine = Instance.new("TextLabel")
-        NameLine.Name = "NameLine"
-        NameLine.BackgroundTransparency = 1
-        NameLine.Position = UDim2.new(0, 6, 0, 4)
-        NameLine.Size = UDim2.new(1, -12, 0, 16)
-        NameLine.Font = Enum.Font.RobotoMono
-        NameLine.TextSize = 12
-        NameLine.TextColor3 = Color3.fromRGB(240, 240, 240)
-        NameLine.TextXAlignment = Enum.TextXAlignment.Left
-        NameLine.TextTruncate = Enum.TextTruncate.AtEnd
-        NameLine.Text = ResolveAnimationName(StrId, Track.Name)
-        NameLine.Parent = Card
+        local Line2 = Instance.new("TextLabel")
+        Line2.Name = "Line2"
+        Line2.BackgroundTransparency = 1
+        Line2.Position = UDim2.new(0, 0, 0, 15)
+        Line2.Size = UDim2.new(1, 0, 0, 15)
+        Line2.Font = Enum.Font.Code
+        Line2.TextSize = 12
+        Line2.TextColor3 = Color3.fromRGB(225, 225, 225)
+        Line2.TextXAlignment = Enum.TextXAlignment.Left
+        Line2.TextTruncate = Enum.TextTruncate.AtEnd
+        Line2.Text = RawId
+        Line2.Parent = EntryContainer
 
-        local UrlLine = Instance.new("TextLabel")
-        UrlLine.Name = "UrlLine"
-        UrlLine.BackgroundTransparency = 1
-        UrlLine.Position = UDim2.new(0, 6, 0, 20)
-        UrlLine.Size = UDim2.new(1, -12, 0, 16)
-        UrlLine.Font = Enum.Font.RobotoMono
-        UrlLine.TextSize = 11
-        UrlLine.TextColor3 = Color3.fromRGB(180, 180, 180)
-        UrlLine.TextXAlignment = Enum.TextXAlignment.Left
-        UrlLine.TextTruncate = Enum.TextTruncate.AtEnd
-        UrlLine.Text = RawId
-        UrlLine.Parent = Card
+        local Line3 = Instance.new("TextLabel")
+        Line3.Name = "Line3"
+        Line3.BackgroundTransparency = 1
+        Line3.Position = UDim2.new(0, 0, 0, 30)
+        Line3.Size = UDim2.new(1, 0, 0, 15)
+        Line3.Font = Enum.Font.Code
+        Line3.TextSize = 12
+        Line3.TextColor3 = Color3.fromRGB(225, 225, 225)
+        Line3.TextXAlignment = Enum.TextXAlignment.Left
+        Line3.Text = string.format("plays: 1 | last: %s", os.date("%X"))
+        Line3.Parent = EntryContainer
 
-        local StatsLine = Instance.new("TextLabel")
-        StatsLine.Name = "StatsLine"
-        StatsLine.BackgroundTransparency = 1
-        StatsLine.Position = UDim2.new(0, 6, 0, 36)
-        StatsLine.Size = UDim2.new(1, -12, 0, 16)
-        StatsLine.Font = Enum.Font.RobotoMono
-        StatsLine.TextSize = 11
-        StatsLine.TextColor3 = Color3.fromRGB(150, 150, 150)
-        StatsLine.TextXAlignment = Enum.TextXAlignment.Left
-        StatsLine.Text = string.format("plays: 1 | last: %s", os.date("%X"))
-        StatsLine.Parent = Card
+        local Line4 = Instance.new("TextLabel")
+        Line4.Name = "Line4"
+        Line4.BackgroundTransparency = 1
+        Line4.Position = UDim2.new(0, 0, 0, 45)
+        Line4.Size = UDim2.new(1, 0, 0, 15)
+        Line4.Font = Enum.Font.Code
+        Line4.TextSize = 12
+        Line4.TextColor3 = Color3.fromRGB(225, 225, 225)
+        Line4.TextXAlignment = Enum.TextXAlignment.Left
+        Line4.TextTruncate = Enum.TextTruncate.AtEnd
+        Line4.Text = "sources: " .. SourcePath
+        Line4.Parent = EntryContainer
 
-        local SourcesLine = Instance.new("TextLabel")
-        SourcesLine.Name = "SourcesLine"
-        SourcesLine.BackgroundTransparency = 1
-        SourcesLine.Position = UDim2.new(0, 6, 0, 52)
-        SourcesLine.Size = UDim2.new(1, -12, 0, 16)
-        SourcesLine.Font = Enum.Font.RobotoMono
-        SourcesLine.TextSize = 11
-        SourcesLine.TextColor3 = Color3.fromRGB(130, 130, 130)
-        SourcesLine.TextXAlignment = Enum.TextXAlignment.Left
-        SourcesLine.TextTruncate = Enum.TextTruncate.AtEnd
-        SourcesLine.Text = "sources: " .. SourcePath
-        SourcesLine.Parent = Card
-
-        Card.Activated:Connect(function()
+        EntryContainer.Activated:Connect(function()
             pcall(SetClipboard, StrId)
-            local PrevColor = NameLine.TextColor3
-            local PrevText = NameLine.Text
-            NameLine.Text = "✓ Copied ID: " .. StrId
-            NameLine.TextColor3 = Color3.fromRGB(80, 240, 140)
+            local PrevColor = Line1.TextColor3
+            local PrevText = Line1.Text
+            Line1.Text = "Copied: " .. StrId
+            Line1.TextColor3 = Color3.fromRGB(60, 240, 140)
             task.delay(1, function()
-                if NameLine and NameLine.Parent then
-                    NameLine.Text = PrevText
-                    NameLine.TextColor3 = PrevColor
+                if Line1 and Line1.Parent then
+                    Line1.Text = PrevText
+                    Line1.TextColor3 = PrevColor
                 end
             end)
         end)
@@ -321,8 +303,9 @@ if GetEnv.InitAdvancedAnimationLogger then
             Plays = 1,
             Last = os.date("%X"),
             Sources = { [SourcePath] = true },
-            StatsLabel = StatsLine,
-            SourcesLabel = SourcesLine,
+            TitleLabel = Line1,
+            StatsLabel = Line3,
+            SourcesLabel = Line4,
         }
     end
 
