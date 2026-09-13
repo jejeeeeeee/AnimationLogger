@@ -97,7 +97,7 @@ local function CheckRobloxOwned(NumId: number): (boolean, string?)
     end)
 
     if Success and Info then
-        if Info.Name then
+        if Info.Name and Info.Name ~= "" then
             NameCache[NumId] = Info.Name
         end
         if Info.Creator then
@@ -114,24 +114,35 @@ local function CheckRobloxOwned(NumId: number): (boolean, string?)
     return false, (Info and Info.Name)
 end
 
-local function ResolveAnimationName(IdStr: string, TrackName: string?): string
+local function ResolveAnimationName(IdStr: string, TrackName: string?, AnimInstanceName: string?): string
     local NumId = tonumber(IdStr)
-    if not NumId then return TrackName or "Animation" end
-    if NameCache[NumId] then return NameCache[NumId] end
+    if NumId and NameCache[NumId] and NameCache[NumId] ~= "" and NameCache[NumId] ~= "Animation" then
+        return NameCache[NumId]
+    end
 
     if TrackName and TrackName ~= "" and TrackName ~= "Animation" and TrackName ~= "AnimationTrack" and TrackName ~= "Anim" then
-        NameCache[NumId] = TrackName
+        if NumId then NameCache[NumId] = TrackName end
         return TrackName
     end
 
-    local _, FetchedName = CheckRobloxOwned(NumId)
-    if FetchedName and FetchedName ~= "" then
-        NameCache[NumId] = FetchedName
-        return FetchedName
+    if AnimInstanceName and AnimInstanceName ~= "" and AnimInstanceName ~= "Animation" and AnimInstanceName ~= "AnimationTrack" and AnimInstanceName ~= "Anim" then
+        if NumId then NameCache[NumId] = AnimInstanceName end
+        return AnimInstanceName
     end
 
-    NameCache[NumId] = TrackName or "Animation"
-    return NameCache[NumId]
+    if NumId then
+        local Success, Info = pcall(function()
+            return MarketplaceService:GetProductInfo(NumId, Enum.InfoType.Asset)
+        end)
+        if Success and Info and Info.Name and Info.Name ~= "" then
+            NameCache[NumId] = Info.Name
+            return Info.Name
+        end
+    end
+
+    local Fallback = (TrackName and TrackName ~= "") and TrackName or "Unknown"
+    if NumId then NameCache[NumId] = Fallback end
+    return Fallback
 end
 
 if GetEnv.InitAdvancedAnimationLogger then
@@ -199,7 +210,7 @@ if GetEnv.InitAdvancedAnimationLogger then
 
     local function LogAdvancedAnimation(Player: Player, Track: AnimationTrack, StrId: string, NumId: number)
         local RawId = (Track.Animation and Track.Animation.AnimationId ~= "" and Track.Animation.AnimationId) or ("rbxassetid://" .. StrId)
-        local SourcePath = Player.Character and ("Workspace.Players." .. Player.Name .. ".Humanoid") or ("Workspace.Players." .. Player.Name .. ".Humanoid")
+        local SourcePath = "Workspace.Players." .. Player.Name .. ".Humanoid"
         if Track.Name and Track.Name ~= "" and Track.Name ~= "Animation" then
             SourcePath = SourcePath .. " (" .. Track.Name .. ")"
         end
@@ -232,7 +243,8 @@ if GetEnv.InitAdvancedAnimationLogger then
         EntryContainer.AutoButtonColor = false
         EntryContainer.Parent = ScrollFrame
 
-        local DisplayName = (Track.Name and Track.Name ~= "" and Track.Name) or "Animation"
+        local InitialResolved = ResolveAnimationName(StrId, Track.Name, Track.Animation and Track.Animation.Name)
+        local DisplayHeader = (string.find(InitialResolved, "^Animation:") and InitialResolved) or ("Animation: " .. InitialResolved)
 
         local Line1 = Instance.new("TextLabel")
         Line1.Name = "Line1"
@@ -244,7 +256,7 @@ if GetEnv.InitAdvancedAnimationLogger then
         Line1.TextColor3 = Color3.fromRGB(225, 225, 225)
         Line1.TextXAlignment = Enum.TextXAlignment.Left
         Line1.TextTruncate = Enum.TextTruncate.AtEnd
-        Line1.Text = DisplayName
+        Line1.Text = DisplayHeader
         Line1.Parent = EntryContainer
 
         local Line2 = Instance.new("TextLabel")
@@ -307,6 +319,13 @@ if GetEnv.InitAdvancedAnimationLogger then
             StatsLabel = Line3,
             SourcesLabel = Line4,
         }
+
+        task.spawn(function()
+            local Fetched = ResolveAnimationName(StrId, Track.Name, Track.Animation and Track.Animation.Name)
+            if Fetched and Fetched ~= "" and Line1 and Line1.Parent then
+                Line1.Text = (string.find(Fetched, "^Animation:") and Fetched) or ("Animation: " .. Fetched)
+            end
+        end)
     end
 
     local function ScanPlayerAdvanced(Player: Player)
@@ -436,6 +455,8 @@ else
         Button.AutoButtonColor = true
         Button.Parent = ScrollFrame
 
+        local FormattedName = (string.find(AnimName, "^Animation:") and AnimName) or ("Animation: " .. AnimName)
+
         local NameLabel = Instance.new("TextLabel")
         NameLabel.Name = "HeaderLabel"
         NameLabel.BackgroundTransparency = 1
@@ -446,7 +467,7 @@ else
         NameLabel.TextColor3 = Color3.fromRGB(245, 245, 245)
         NameLabel.TextXAlignment = Enum.TextXAlignment.Left
         NameLabel.TextTruncate = Enum.TextTruncate.AtEnd
-        NameLabel.Text = PlayerName .. " - " .. AnimName
+        NameLabel.Text = PlayerName .. " - " .. FormattedName
         NameLabel.Parent = Button
 
         local IdLabel = Instance.new("TextLabel")
@@ -523,7 +544,7 @@ else
                     if not AnimationTable[Signature] then
                         AnimationTable[Signature] = true
                         task.spawn(function()
-                            local AnimName = ResolveAnimationName(StrId, Track.Name)
+                            local AnimName = ResolveAnimationName(StrId, Track.Name, Track.Animation and Track.Animation.Name)
                             CreateButton(Player.Name, AnimName, StrId)
                         end)
                     end
