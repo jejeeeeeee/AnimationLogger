@@ -148,6 +148,32 @@ end
 
 local WriteFile: any = rawget(GetEnv, "writefile") or rawget(_G, "writefile")
 local ReadFile: any = rawget(GetEnv, "readfile") or rawget(_G, "readfile")
+
+local function GetGameFileName(): string
+    local GameName = tostring(game.Name)
+    local Success, Info = pcall(function()
+        return MarketplaceService:GetProductInfo(game.GameId, Enum.InfoType.Game)
+    end)
+
+    if Success and Info and Info.Name and Info.Name ~= "" then
+        GameName = tostring(Info.Name)
+    elseif game.GameId and game.GameId ~= 0 then
+        GameName = "Game_" .. tostring(game.GameId)
+    end
+
+    GameName = GameName:gsub("[<>:\"/]", "_")
+    GameName = GameName:gsub("\\", "_")
+    GameName = GameName:gsub("[|?*]", "_")
+    GameName = GameName:gsub("%c", "_"):gsub("%s+$", "")
+
+    if GameName == "" then
+        GameName = tostring(game.GameId)
+    end
+
+    return "Animations_" .. GameName .. ".json"
+end
+
+local AnimationFileName = GetGameFileName()
 local AnimationRecords: { [string]: {
     Id: string,
     Name: string,
@@ -173,56 +199,33 @@ local function UpdateAnimationRecord(Player: Player, Track: AnimationTrack, StrI
     end
 end
 
-local function PrettyJson(Value: any, Indent: number?): string
-    local CurrentIndent = Indent or 0
-    local Prefix = string.rep("    ", CurrentIndent)
-    local ChildPrefix = string.rep("    ", CurrentIndent + 1)
-    local ValueType = type(Value)
+local function FormatAnimationJson(Entries: { { Id: string, Name: string, Weight: number, Speed: number } }): string
+    local Lines = {
+        "{",
+        '    "Animations": [',
+    }
 
-    if ValueType == "string" then
-        return HttpService:JSONEncode(Value)
-    elseif ValueType == "number" or ValueType == "boolean" then
-        return tostring(Value)
-    elseif Value == nil then
-        return "null"
-    elseif ValueType ~= "table" then
-        return HttpService:JSONEncode(tostring(Value))
-    end
-
-    local IsArray = true
-    local ItemCount = 0
-    for Key in pairs(Value) do
-        ItemCount += 1
-        if type(Key) ~= "number" or Key < 1 or Key % 1 ~= 0 then
-            IsArray = false
-        end
-    end
-    IsArray = IsArray and (ItemCount == #Value)
-
-    local Parts = {}
-    if IsArray then
-        for _, Item in ipairs(Value) do
-            table.insert(Parts, ChildPrefix .. PrettyJson(Item, CurrentIndent + 1))
-        end
-        if #Parts == 0 then
-            return "[]"
-        end
-        return "[\n" .. table.concat(Parts, ",\n") .. "\n" .. Prefix .. "]"
+    for Index, Record in ipairs(Entries) do
+        local IsLast = Index == #Entries
+        table.insert(Lines, "        {")
+        table.insert(Lines, "            \"Id\": " .. HttpService:JSONEncode(Record.Id) .. ",")
+        table.insert(Lines, "            \"Name\": " .. HttpService:JSONEncode(Record.Name) .. ",")
+        table.insert(Lines, "            \"Weight\": " .. tostring(Record.Weight) .. ",")
+        table.insert(Lines, "            \"Speed\": " .. tostring(Record.Speed))
+        table.insert(Lines, "        }" .. (IsLast and "" or ","))
     end
 
-    local Keys = {}
-    for Key in pairs(Value) do
-        table.insert(Keys, tostring(Key))
+    if #Entries == 0 then
+        Lines = {
+            "{",
+            '    "Animations": []',
+        }
+    else
+        table.insert(Lines, "    ]")
     end
-    table.sort(Keys)
 
-    for _, Key in ipairs(Keys) do
-        table.insert(Parts, ChildPrefix .. HttpService:JSONEncode(Key) .. ": " .. PrettyJson(Value[Key], CurrentIndent + 1))
-    end
-    if #Parts == 0 then
-        return "{}"
-    end
-    return "{\n" .. table.concat(Parts, ",\n") .. "\n" .. Prefix .. "}"
+    table.insert(Lines, "}")
+    return table.concat(Lines, string.char(13, 10))
 end
 
 local function ReadSavedAnimations(): { [string]: { Id: string, Name: string, Weight: number, Speed: number } }
@@ -232,7 +235,7 @@ local function ReadSavedAnimations(): { [string]: { Id: string, Name: string, We
     end
 
     local ReadSuccess, Contents = pcall(function()
-        return ReadFile("animations.json")
+        return ReadFile(AnimationFileName)
     end)
     if not ReadSuccess or type(Contents) ~= "string" or Contents == "" then
         return SavedById
@@ -263,7 +266,6 @@ local function ReadSavedAnimations(): { [string]: { Id: string, Name: string, We
         SavedById[Id] = {
             Id = Id,
             Name = tostring(Record.Name or "Unknown"),
-            Weight = tonumber(Record.Weight or Record.AnimationWeight) or 0,
             Weight = tonumber(Record.Weight) or 0,
             Speed = tonumber(Record.Speed) or 0,
         }
@@ -308,7 +310,7 @@ local function SaveAnimationsToWorkspace(): (boolean, string)
     }
 
     local Success = pcall(function()
-        WriteFile("animations.json", PrettyJson(Payload))
+        WriteFile(AnimationFileName, FormatAnimationJson(Payload.Animations))
     end)
 
     if not Success then
