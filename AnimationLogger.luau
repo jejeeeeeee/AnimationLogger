@@ -177,6 +177,7 @@ local AnimationFileName = GetGameFileName()
 local AnimationRecords: { [string]: {
     Id: string,
     Name: string,
+    Source: string,
     Weight: number,
     Speed: number,
 } } = {}
@@ -190,6 +191,7 @@ local function UpdateAnimationRecord(Player: Player, Track: AnimationTrack, StrI
     AnimationRecords[Signature] = {
         Id = StrId,
         Name = ResolvedName,
+        Source = "Workspace.Players." .. Player.Name .. ".Humanoid",
         Weight = tonumber(Track.WeightCurrent) or 0,
         Speed = tonumber(Track.Speed) or 0,
     }
@@ -200,6 +202,7 @@ local function UpdateAnimationRecord(Player: Player, Track: AnimationTrack, StrI
 end
 
 local function FormatAnimationJson(Entries: { { Id: string, Name: string, Weight: number, Speed: number } }): string
+local function FormatAnimationJson(Entries: { { Id: string, Name: string, Source: string, Weight: number, Speed: number } }): string
     local Lines = {
         "{",
         '    "Animations": [',
@@ -210,6 +213,7 @@ local function FormatAnimationJson(Entries: { { Id: string, Name: string, Weight
         table.insert(Lines, "        {")
         table.insert(Lines, "            \"Id\": " .. HttpService:JSONEncode(Record.Id) .. ",")
         table.insert(Lines, "            \"Name\": " .. HttpService:JSONEncode(Record.Name) .. ",")
+        table.insert(Lines, "            \"Source\": " .. HttpService:JSONEncode(Record.Source) .. ",")
         table.insert(Lines, "            \"Weight\": " .. tostring(Record.Weight) .. ",")
         table.insert(Lines, "            \"Speed\": " .. tostring(Record.Speed))
         table.insert(Lines, "        }" .. (IsLast and "" or ","))
@@ -229,6 +233,7 @@ local function FormatAnimationJson(Entries: { { Id: string, Name: string, Weight
 end
 
 local function ReadSavedAnimations(): { [string]: { Id: string, Name: string, Weight: number, Speed: number } }
+local function ReadSavedAnimations(): { [string]: { Id: string, Name: string, Source: string, Weight: number, Speed: number } }
     local SavedById = {}
     if type(ReadFile) ~= "function" then
         return SavedById
@@ -266,6 +271,7 @@ local function ReadSavedAnimations(): { [string]: { Id: string, Name: string, We
         SavedById[Id] = {
             Id = Id,
             Name = tostring(Record.Name or "Unknown"),
+            Source = tostring(Record.Source or "Unknown"),
             Weight = tonumber(Record.Weight) or 0,
             Speed = tonumber(Record.Speed) or 0,
         }
@@ -290,6 +296,7 @@ local function SaveAnimationsToWorkspace(): (boolean, string)
             SavedById[Record.Id] = {
                 Id = Record.Id,
                 Name = Record.Name,
+                Source = Record.Source,
                 Weight = Record.Weight,
                 Speed = Record.Speed,
             }
@@ -401,6 +408,8 @@ if GetEnv.InitAdvancedAnimationLogger then
     ScrollFrame.Parent = MainFrame
 
     CreateSaveButton(MainFrame, UDim2.new(0, 8, 0, 30), UDim2.new(0, 180, 0, 22))
+    local AdvancedSaveButton = CreateSaveButton(MainFrame, UDim2.new(0.5, 0, 0, 30), UDim2.new(0, 180, 0, 22))
+    AdvancedSaveButton.AnchorPoint = Vector2.new(0.5, 0)
 
     local ListLayout = Instance.new("UIListLayout")
     ListLayout.Padding = UDim.new(0, 10)
