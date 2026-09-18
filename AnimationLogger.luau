@@ -1,876 +1,348 @@
 local Players = game:GetService("Players")
-local CoreGui = game:GetService("CoreGui")
 local UserInputService = game:GetService("UserInputService")
-local MarketplaceService = game:GetService("MarketplaceService")
-local HttpService = game:GetService("HttpService")
-local MarketplaceService: any = nil
-local HttpService: any = nil
-pcall(function()
-    MarketplaceService = game:GetService("MarketplaceService")
-end)
-pcall(function()
-    HttpService = game:GetService("HttpService")
-end)
 local LocalPlayer = Players.LocalPlayer
 
-local GetEnv: any = (getgenv and getgenv()) or getfenv()
-local GetEnv: any = _G
-if type(getgenv) == "function" then
-    local EnvSuccess, Env = pcall(getgenv)
-    if EnvSuccess and type(Env) == "table" then
-        GetEnv = Env
-    end
-elseif type(getfenv) == "function" then
-    local EnvSuccess, Env = pcall(getfenv)
-    if EnvSuccess and type(Env) == "table" then
-        GetEnv = Env
-    end
-end
-
-if type(GetEnv) ~= "table" then
-    GetEnv = _G
-end
-if GetEnv.SkipRobloxOwnedAnimations == nil then
-    GetEnv.SkipRobloxOwnedAnimations = false
-end
-if GetEnv.InitAdvancedAnimationLogger == nil then
-    GetEnv.InitAdvancedAnimationLogger = false
-end
-
-local SetClipboard: any = rawget(GetEnv, "setclipboard")
-if not SetClipboard then
-    local Syn: any = rawget(GetEnv, "syn")
-    if type(Syn) == "table" and rawget(Syn, "write_clipboard") then
-        SetClipboard = rawget(Syn, "write_clipboard")
-    elseif rawget(GetEnv, "toclipboard") then
-        SetClipboard = rawget(GetEnv, "toclipboard")
-    else
-        SetClipboard = function(Txt: any) end
-    end
-end
-
-local ParentGui: any = nil
-local PlayerGui: any = nil
-if LocalPlayer then
-    pcall(function()
-        PlayerGui = LocalPlayer:FindFirstChildOfClass("PlayerGui") or LocalPlayer:WaitForChild("PlayerGui", 10)
+local function getService(Name)
+    local Success, Service = pcall(function()
+        return game:GetService(Name)
     end)
+    return Success and Service or nil
 end
 
-pcall(function()
-    local GetHui: any = rawget(GetEnv, "gethui")
-    if type(GetHui) == "function" then
-        ParentGui = GetHui()
-    elseif PlayerGui then
-        ParentGui = PlayerGui
-    elseif CoreGui then
-        ParentGui = CoreGui
+local CoreGui = getService("CoreGui")
+local MarketplaceService = getService("MarketplaceService")
+local HttpService = getService("HttpService")
+
+local Env = _G
+if type(getgenv) == "function" then
+    local Success, Value = pcall(getgenv)
+    if Success and type(Value) == "table" then Env = Value end
+elseif type(getfenv) == "function" then
+    local Success, Value = pcall(getfenv)
+    if Success and type(Value) == "table" then Env = Value end
+end
+
+if Env.SkipRobloxOwnedAnimations == nil then Env.SkipRobloxOwnedAnimations = false end
+if Env.InitAdvancedAnimationLogger == nil then Env.InitAdvancedAnimationLogger = false end
+
+local function findFunction(Name)
+    local Value = rawget(Env, Name) or rawget(_G, Name)
+    return type(Value) == "function" and Value or nil
+end
+
+local WriteFile = findFunction("writefile")
+local ReadFile = findFunction("readfile")
+local SetClipboard = findFunction("setclipboard") or findFunction("toclipboard")
+if not SetClipboard then SetClipboard = function() end end
+
+local function sanitize(Name)
+    Name = tostring(Name):gsub("[<>:\"/\\|?*]", "_"):gsub("%c", "_"):gsub("%s+$", "")
+    return Name ~= "" and Name or tostring(game.GameId)
+end
+
+local FileName = "Animations_" .. sanitize(game.Name) .. ".json"
+task.spawn(function()
+    if MarketplaceService and game.GameId ~= 0 then
+        local Success, Info = pcall(function()
+            return MarketplaceService:GetProductInfo(game.GameId, Enum.InfoType.Game)
+        end)
+        if Success and Info and Info.Name and Info.Name ~= "" then
+            FileName = "Animations_" .. sanitize(Info.Name) .. ".json"
+        elseif game.GameId ~= 0 then
+            FileName = "Animations_Game_" .. game.GameId .. ".json"
+        end
     end
 end)
-if not ParentGui then
-    ParentGui = LocalPlayer:WaitForChild("PlayerGui")
-    ParentGui = PlayerGui or CoreGui
-end
 
-local ParentGuiUsable = false
+local PlayerGui = LocalPlayer and LocalPlayer:FindFirstChildOfClass("PlayerGui")
+local ParentGui
 pcall(function()
-    ParentGui:FindFirstChild("__AnimationLoggerParentCheck")
-    ParentGuiUsable = true
+    local GetHui = rawget(Env, "gethui")
+    if type(GetHui) == "function" then ParentGui = GetHui() end
 end)
-if not ParentGuiUsable then
-    ParentGui = PlayerGui or CoreGui
-end
+ParentGui = ParentGui or PlayerGui or CoreGui
 
-local OldGui = nil
-pcall(function()
-local OldGui = ParentGui:FindFirstChild("AnimTrackerUI_🗿") or ParentGui:FindFirstChild("AnimLoggerUI_🗿")
-    OldGui = ParentGui:FindFirstChild("AnimTrackerUI_🗿") or ParentGui:FindFirstChild("AnimLoggerUI_🗿")
-end)
-if OldGui then
-    OldGui:Destroy()
+if ParentGui then
+    pcall(function()
+        local Old = ParentGui:FindFirstChild("AnimTrackerUI")
+        if Old then Old:Destroy() end
+    end)
 end
 
 local ScreenGui = Instance.new("ScreenGui")
-ScreenGui.Name = "AnimTrackerUI_🗿"
+ScreenGui.Name = "AnimTrackerUI"
 ScreenGui.DisplayOrder = 500
 ScreenGui.ResetOnSpawn = false
 ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
-local ParentSuccess = pcall(function()
-ScreenGui.Parent = ParentGui
-    ScreenGui.Parent = ParentGui
-end)
+local ParentSuccess = pcall(function() ScreenGui.Parent = ParentGui end)
 if (not ParentSuccess or not ScreenGui.Parent) and PlayerGui then
-    pcall(function()
-        ScreenGui.Parent = PlayerGui
-    end)
+    pcall(function() ScreenGui.Parent = PlayerGui end)
 end
-
 if not ScreenGui.Parent then
-    warn("Animation logger: unable to create a visible UI")
+    warn("Animation logger: unable to create UI")
     return
 end
 
-local function MakeDraggable(Frame: Frame, DragHandle: Frame)
-    local Dragging = false
-    local DragInput: InputObject? = nil
-    local DragStart: Vector3 = Vector3.zero
-    local StartPos: UDim2 = UDim2.new()
-
-    DragHandle.InputBegan:Connect(function(Input)
-        if (Input.UserInputType == Enum.UserInputType.MouseButton1 or Input.UserInputType == Enum.UserInputType.Touch)
-            and UserInputService:GetFocusedTextBox() == nil then
-            Dragging = true
-            DragStart = Input.Position
-            StartPos = Frame.Position
-
-            Input.Changed:Connect(function()
-                if Input.UserInputState == Enum.UserInputState.End then
-                    Dragging = false
-                end
-            end)
-        end
-    end)
-
-    DragHandle.InputChanged:Connect(function(Input)
-        if Input.UserInputType == Enum.UserInputType.MouseMovement or Input.UserInputType == Enum.UserInputType.Touch then
-            DragInput = Input
-        end
-    end)
-
-    UserInputService.InputChanged:Connect(function(Input)
-        if Input == DragInput and Dragging then
-            local Delta = Input.Position - DragStart
-            Frame.Position = UDim2.new(StartPos.X.Scale, StartPos.X.Offset + Delta.X, StartPos.Y.Scale, StartPos.Y.Offset + Delta.Y)
-        end
-    end)
-end
-
-local NameCache: { [number]: string } = {}
-local OwnerCache: { [number]: boolean } = {}
-
-local function CheckRobloxOwned(NumId: number): (boolean, string?)
-    if OwnerCache[NumId] ~= nil then
-        return OwnerCache[NumId], NameCache[NumId]
+local NameCache = {}
+local function resolveName(Id, Track, Animation)
+    if NameCache[Id] then return NameCache[Id] end
+    local Name = Track and Track.Name
+    if not Name or Name == "" or Name == "Animation" or Name == "Anim" then
+        Name = Animation and Animation.Name
     end
-
-    local Success, Info = pcall(function()
-        return MarketplaceService:GetProductInfo(NumId, Enum.InfoType.Asset)
-    end)
-
-    if Success and Info then
-        if Info.Name and Info.Name ~= "" then
-            NameCache[NumId] = Info.Name
-        end
-        if Info.Creator then
-            local CreatorName = string.lower(tostring(Info.Creator.Name or ""))
-            local CreatorId = Info.Creator.Id or Info.Creator.CreatorTargetId
-            if CreatorName == "roblox" or CreatorId == 1 then
-                OwnerCache[NumId] = true
-                return true, Info.Name
-            end
-        end
-    end
-
-    OwnerCache[NumId] = false
-    return false, (Info and Info.Name)
-end
-
-local function ResolveAnimationName(IdStr: string, TrackName: string?, AnimInstanceName: string?): string
-    local NumId = tonumber(IdStr)
-    if NumId and NameCache[NumId] and NameCache[NumId] ~= "" and NameCache[NumId] ~= "Animation" then
-        return NameCache[NumId]
-    end
-
-    if TrackName and TrackName ~= "" and TrackName ~= "Animation" and TrackName ~= "AnimationTrack" and TrackName ~= "Anim" then
-        if NumId then NameCache[NumId] = TrackName end
-        return TrackName
-    end
-
-    if AnimInstanceName and AnimInstanceName ~= "" and AnimInstanceName ~= "Animation" and AnimInstanceName ~= "AnimationTrack" and AnimInstanceName ~= "Anim" then
-        if NumId then NameCache[NumId] = AnimInstanceName end
-        return AnimInstanceName
-    end
-
-    if NumId then
+    if (not Name or Name == "") and MarketplaceService then
         local Success, Info = pcall(function()
-            return MarketplaceService:GetProductInfo(NumId, Enum.InfoType.Asset)
+            return MarketplaceService:GetProductInfo(tonumber(Id), Enum.InfoType.Asset)
         end)
-        if Success and Info and Info.Name and Info.Name ~= "" then
-            NameCache[NumId] = Info.Name
-            return Info.Name
-        end
+        if Success and Info then Name = Info.Name end
     end
-
-    local Fallback = (TrackName and TrackName ~= "") and TrackName or "Unknown"
-    if NumId then NameCache[NumId] = Fallback end
-    return Fallback
+    NameCache[Id] = (Name and Name ~= "" and Name) or "Unknown"
+    return NameCache[Id]
 end
 
-local WriteFile: any = rawget(GetEnv, "writefile") or rawget(_G, "writefile")
-local ReadFile: any = rawget(GetEnv, "readfile") or rawget(_G, "readfile")
-
-local function SanitizeGameName(GameName: string): string
-    GameName = GameName:gsub("[<>:\"/]", "_")
-    GameName = GameName:gsub("\\", "_")
-    GameName = GameName:gsub("[|?*]", "_")
-    GameName = GameName:gsub("%c", "_"):gsub("%s+$", "")
-
-    if GameName == "" then
-        GameName = tostring(game.GameId)
-    end
-
-    return GameName
-end
-
-local function GetGameFileName(): string
-    local GameName = tostring(game.Name)
-    local GameName = SanitizeGameName(tostring(game.Name))
+local function isRobloxOwned(Id)
+    if not MarketplaceService then return false end
     local Success, Info = pcall(function()
-        return MarketplaceService:GetProductInfo(game.GameId, Enum.InfoType.Game)
+        return MarketplaceService:GetProductInfo(tonumber(Id), Enum.InfoType.Asset)
     end)
-
-    if Success and Info and Info.Name and Info.Name ~= "" then
-        GameName = tostring(Info.Name)
-        GameName = SanitizeGameName(tostring(Info.Name))
-    elseif game.GameId and game.GameId ~= 0 then
-        GameName = "Game_" .. tostring(game.GameId)
-    end
-
-    GameName = GameName:gsub("[<>:\"/]", "_")
-    GameName = GameName:gsub("\\", "_")
-    GameName = GameName:gsub("[|?*]", "_")
-    GameName = GameName:gsub("%c", "_"):gsub("%s+$", "")
-
-    if GameName == "" then
-        GameName = tostring(game.GameId)
-    end
-
-    return "Animations_" .. GameName .. ".json"
+    if not Success or not Info or not Info.Creator then return false end
+    return string.lower(tostring(Info.Creator.Name or "")) == "roblox" or Info.Creator.Id == 1
 end
 
-local AnimationFileName = GetGameFileName()
-local AnimationFileName = "Animations_" .. SanitizeGameName(tostring(game.Name)) .. ".json"
-task.spawn(function()
-    local ResolvedName = GetGameFileName()
-    if type(ResolvedName) == "string" and ResolvedName ~= "" then
-        AnimationFileName = ResolvedName
-    end
-end)
-local AnimationRecords: { [string]: {
-    Id: string,
-    Name: string,
-    Source: string,
-    Weight: number,
-    Speed: number,
-} } = {}
-
-local function UpdateAnimationRecord(Player: Player, Track: AnimationTrack, StrId: string, AnimName: string?)
-    local Signature = tostring(Player.UserId) .. "_" .. StrId
-    local Anim = Track.Animation
-    local Existing = AnimationRecords[Signature]
-    local ResolvedName = AnimName or ResolveAnimationName(StrId, Track.Name, Anim and Anim.Name)
-
-    AnimationRecords[Signature] = {
-        Id = StrId,
-        Name = ResolvedName,
+local Records = {}
+local RecordsById = {}
+local function updateRecord(Player, Track, Id, Name)
+    local Animation = Track.Animation
+    local Record = {
+        Id = Id,
+        Name = Name or resolveName(Id, Track, Animation),
         Source = "Workspace.Players." .. Player.Name .. ".Humanoid",
         Weight = tonumber(Track.WeightCurrent) or 0,
         Speed = tonumber(Track.Speed) or 0,
     }
-
-    if Existing and Existing.Name ~= "" and (ResolvedName == "Unknown" or ResolvedName == "Animation") then
-        AnimationRecords[Signature].Name = Existing.Name
-    end
+    Records[tostring(Player.UserId) .. ":" .. Id] = Record
+    RecordsById[Id] = Record
 end
 
-local function FormatAnimationJson(Entries: { { Id: string, Name: string, Weight: number, Speed: number } }): string
-local function FormatAnimationJson(Entries: { { Id: string, Name: string, Source: string, Weight: number, Speed: number } }): string
-    local Lines = {
-        "{",
-        '    "Animations": [',
-    }
+local function readSaved()
+    local Saved = {}
+    if not ReadFile or not HttpService then return Saved end
+    local ReadSuccess, Text = pcall(function() return ReadFile(FileName) end)
+    if not ReadSuccess or type(Text) ~= "string" or Text == "" then return Saved end
+    local DecodeSuccess, Data = pcall(function() return HttpService:JSONDecode(Text) end)
+    if not DecodeSuccess or type(Data) ~= "table" then return Saved end
+    local List = Data.Animations or Data
+    for Key, Value in pairs(List) do
+        if type(Value) == "table" then
+            local Id = tostring(Value.Id or Value.AnimationId or Key or "")
+            if Id ~= "" then
+                Saved[Id] = {
+                    Id = Id,
+                    Name = tostring(Value.Name or "Unknown"),
+                    Source = tostring(Value.Source or "Unknown"),
+                    Weight = tonumber(Value.Weight) or 0,
+                    Speed = tonumber(Value.Speed) or 0,
+                }
+            end
+        end
+    end
+    return Saved
+end
 
+local function jsonString(Value)
+    return HttpService:JSONEncode(tostring(Value))
+end
+
+local function formatJson(Entries)
+    local Lines = { "{", '    "Animations": [' }
     for Index, Record in ipairs(Entries) do
-        local IsLast = Index == #Entries
         table.insert(Lines, "        {")
-        table.insert(Lines, "            \"Id\": " .. HttpService:JSONEncode(Record.Id) .. ",")
-        table.insert(Lines, "            \"Name\": " .. HttpService:JSONEncode(Record.Name) .. ",")
-        table.insert(Lines, "            \"Source\": " .. HttpService:JSONEncode(Record.Source) .. ",")
-        table.insert(Lines, "            \"Weight\": " .. tostring(Record.Weight) .. ",")
-        table.insert(Lines, "            \"Speed\": " .. tostring(Record.Speed))
-        table.insert(Lines, "        }" .. (IsLast and "" or ","))
+        table.insert(Lines, '            "Id": ' .. jsonString(Record.Id) .. ',')
+        table.insert(Lines, '            "Name": ' .. jsonString(Record.Name) .. ',')
+        table.insert(Lines, '            "Source": ' .. jsonString(Record.Source) .. ',')
+        table.insert(Lines, '            "Weight": ' .. tostring(Record.Weight) .. ',')
+        table.insert(Lines, '            "Speed": ' .. tostring(Record.Speed))
+        table.insert(Lines, "        }" .. (Index == #Entries and "" or ","))
     end
-
     if #Entries == 0 then
-        Lines = {
-            "{",
-            '    "Animations": []',
-        }
-    else
-        table.insert(Lines, "    ]")
+        return "{\r\n    \"Animations\": []\r\n}"
     end
-
+    table.insert(Lines, "    ]")
     table.insert(Lines, "}")
-    return table.concat(Lines, string.char(13, 10))
+    return table.concat(Lines, "\r\n")
 end
 
-local function ReadSavedAnimations(): { [string]: { Id: string, Name: string, Weight: number, Speed: number } }
-local function ReadSavedAnimations(): { [string]: { Id: string, Name: string, Source: string, Weight: number, Speed: number } }
-    local SavedById = {}
-    if type(ReadFile) ~= "function" then
-        return SavedById
-    end
-
-    local ReadSuccess, Contents = pcall(function()
-        return ReadFile(AnimationFileName)
-    end)
-    if not ReadSuccess or type(Contents) ~= "string" or Contents == "" then
-        return SavedById
-    end
-
-    local DecodeSuccess, Data = pcall(function()
-        return HttpService:JSONDecode(Contents)
-    end)
-    if not DecodeSuccess or type(Data) ~= "table" then
-        return SavedById
-    end
-
-    local Source = Data.Animations or Data
-    if type(Source) ~= "table" then
-        return SavedById
-    end
-
-    local function AddRecord(Key: any, Record: any)
-        if type(Record) ~= "table" then
-            return
-        end
-
-        local Id = tostring(Record.Id or Record.AnimationId or Key or "")
-        if Id == "" then
-            return
-        end
-
-        SavedById[Id] = {
-            Id = Id,
-            Name = tostring(Record.Name or "Unknown"),
-            Source = tostring(Record.Source or "Unknown"),
-            Weight = tonumber(Record.Weight) or 0,
-            Speed = tonumber(Record.Speed) or 0,
-        }
-    end
-
-    for Key, Record in pairs(Source) do
-        AddRecord(Key, Record)
-    end
-
-    return SavedById
-end
-
-local function SaveAnimationsToWorkspace(): (boolean, string)
-    if type(WriteFile) ~= "function" then
-        return false, "writefile unavailable"
-    end
-
-    local SavedById = ReadSavedAnimations()
-    local AddedCount = 0
-    for _, Record in pairs(AnimationRecords) do
-        if not SavedById[Record.Id] then
-            SavedById[Record.Id] = {
-                Id = Record.Id,
-                Name = Record.Name,
-                Source = Record.Source,
-                Weight = Record.Weight,
-                Speed = Record.Speed,
-            }
-            AddedCount += 1
+local function saveAnimations()
+    if not WriteFile then return false, "writefile unavailable" end
+    if not HttpService then return false, "HttpService unavailable" end
+    local Saved, Added = readSaved(), 0
+    for Id, Record in pairs(RecordsById) do
+        if not Saved[Id] then
+            Saved[Id] = Record
+            Added += 1
         end
     end
-
     local Entries = {}
-    for _, Record in pairs(SavedById) do
-        table.insert(Entries, Record)
-    end
-    table.sort(Entries, function(A, B)
-        return A.Id < B.Id
+    for _, Record in pairs(Saved) do table.insert(Entries, Record) end
+    table.sort(Entries, function(A, B) return A.Id < B.Id end)
+    local Success, Error = pcall(function()
+        WriteFile(FileName, formatJson(Entries))
     end)
-
-    local Payload = {
-        Animations = Entries,
-    }
-
-    local Success = pcall(function()
-        WriteFile(AnimationFileName, FormatAnimationJson(Payload.Animations))
-    end)
-
-    if not Success then
-        return false, "save failed"
-    end
-
-    return true, string.format("saved %d animations", AddedCount)
+    if not Success then return false, tostring(Error) end
+    return true, string.format("saved %d animations", Added)
 end
 
-local function CreateSaveButton(Parent: Instance, Position: UDim2, Size: UDim2): TextButton
-    local Button = Instance.new("TextButton")
-    Button.Name = "SaveAnimationsButton"
-    Button.Position = Position
-    Button.Size = Size
-    Button.BackgroundColor3 = Color3.fromRGB(60, 180, 110)
-    Button.BorderSizePixel = 0
-    Button.Font = Enum.Font.Gotham
-    Button.TextSize = 12
-    Button.TextColor3 = Color3.fromRGB(255, 255, 255)
-    Button.Text = "save anims to workspace"
-    Button.AutoButtonColor = true
-    Button.Parent = Parent
-
-    local Corner = Instance.new("UICorner")
-    Corner.CornerRadius = UDim.new(0, 4)
-    Corner.Parent = Button
-
-    Button.Activated:Connect(function()
-        local OriginalText = "save anims to workspace"
-        local Success, Message = SaveAnimationsToWorkspace()
-        Button.Text = Success and Message or ("error: " .. Message)
-        Button.BackgroundColor3 = Success and Color3.fromRGB(60, 180, 110) or Color3.fromRGB(190, 70, 70)
-        task.delay(1.5, function()
-            if Button and Button.Parent then
-                Button.Text = OriginalText
-                Button.BackgroundColor3 = Color3.fromRGB(60, 180, 110)
-            end
-        end)
-    end)
-
-    return Button
+local function make(className, Parent, Properties)
+    local Object = Instance.new(className)
+    for Key, Value in pairs(Properties or {}) do Object[Key] = Value end
+    Object.Parent = Parent
+    return Object
 end
 
-if GetEnv.InitAdvancedAnimationLogger then
-    local MainFrame = Instance.new("Frame")
-    MainFrame.Name = "MainFrame"
-    MainFrame.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
-    MainFrame.BorderSizePixel = 0
-    MainFrame.Position = UDim2.new(0.08, 0, 0.15, 0)
-    MainFrame.Size = UDim2.new(0, 370, 0, 420)
-    MainFrame.Active = true
-    MainFrame.Parent = ScreenGui
+local Advanced = Env.InitAdvancedAnimationLogger == true
+local Main = make("Frame", ScreenGui, {
+    Name = "MainFrame",
+    BackgroundColor3 = Advanced and Color3.fromRGB(30, 30, 30) or Color3.fromRGB(44, 47, 51),
+    BorderSizePixel = 0,
+    Position = UDim2.new(0.1, 0, 0.2, 0),
+    Size = Advanced and UDim2.new(0, 370, 0, 420) or UDim2.new(0, 260, 0, 360),
+    Active = true,
+})
+make("UICorner", Main, { CornerRadius = UDim.new(0, 5) })
 
-    local MainCorner = Instance.new("UICorner")
-    MainCorner.CornerRadius = UDim.new(0, 4)
-    MainCorner.Parent = MainFrame
+local TitleBar = make("Frame", Main, {
+    BackgroundTransparency = 1,
+    Size = UDim2.new(1, 0, 0, 28),
+})
+local Title = make("TextLabel", TitleBar, {
+    BackgroundTransparency = 1,
+    Size = UDim2.new(1, 0, 1, 0),
+    Font = Enum.Font.Code,
+    TextSize = 13,
+    TextColor3 = Color3.new(1, 1, 1),
+    Text = "Animation Tracker (0 unique)",
+    TextXAlignment = Enum.TextXAlignment.Center,
+})
 
-    local TitleBar = Instance.new("Frame")
-    TitleBar.Name = "TitleBar"
-    TitleBar.BackgroundTransparency = 1
-    TitleBar.Size = UDim2.new(1, 0, 0, 28)
-    TitleBar.Parent = MainFrame
-
-    local TitleLabel = Instance.new("TextLabel")
-    TitleLabel.Name = "TitleLabel"
-    TitleLabel.BackgroundTransparency = 1
-    TitleLabel.Size = UDim2.new(1, 0, 1, 0)
-    TitleLabel.Font = Enum.Font.Code
-    TitleLabel.TextSize = 13
-    TitleLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
-    TitleLabel.Text = "Animation Tracker (0 unique)"
-    TitleLabel.TextXAlignment = Enum.TextXAlignment.Center
-    TitleLabel.Parent = TitleBar
-
-    MakeDraggable(MainFrame, TitleBar)
-
-    local ScrollFrame = Instance.new("ScrollingFrame")
-    ScrollFrame.Name = "AnimationList"
-    ScrollFrame.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
-    ScrollFrame.BackgroundTransparency = 1
-    ScrollFrame.BorderSizePixel = 0
-    ScrollFrame.Position = UDim2.new(0, 8, 0, 56)
-    ScrollFrame.Size = UDim2.new(1, -12, 1, -62)
-    ScrollFrame.AutomaticCanvasSize = Enum.AutomaticSize.Y
-    ScrollFrame.CanvasSize = UDim2.new(0, 0, 0, 0)
-    ScrollFrame.ScrollBarThickness = 5
-    ScrollFrame.ScrollBarImageColor3 = Color3.fromRGB(120, 120, 120)
-    ScrollFrame.Parent = MainFrame
-
-    CreateSaveButton(MainFrame, UDim2.new(0, 8, 0, 30), UDim2.new(0, 180, 0, 22))
-    local AdvancedSaveButton = CreateSaveButton(MainFrame, UDim2.new(0.5, 0, 0, 30), UDim2.new(0, 180, 0, 22))
-    AdvancedSaveButton.AnchorPoint = Vector2.new(0.5, 0)
-
-    local ListLayout = Instance.new("UIListLayout")
-    ListLayout.Padding = UDim.new(0, 10)
-    ListLayout.SortOrder = Enum.SortOrder.LayoutOrder
-    ListLayout.Parent = ScrollFrame
-
-    local UniqueCount = 0
-    local AdvancedEntries: {
-        [string]: {
-            Plays: number,
-            Last: string,
-            Sources: { [string]: boolean },
-            TitleLabel: TextLabel,
-            StatsLabel: TextLabel,
-            SourcesLabel: TextLabel,
-        }
-    } = {}
-
-    local function LogAdvancedAnimation(Player: Player, Track: AnimationTrack, StrId: string, NumId: number)
-        local RawId = (Track.Animation and Track.Animation.AnimationId ~= "" and Track.Animation.AnimationId) or ("rbxassetid://" .. StrId)
-        local SourcePath = "Workspace.Players." .. Player.Name .. ".Humanoid"
-        if Track.Name and Track.Name ~= "" and Track.Name ~= "Animation" then
-            SourcePath = SourcePath .. " (" .. Track.Name .. ")"
-        end
-
-        local InitialResolved = ResolveAnimationName(StrId, Track.Name, Track.Animation and Track.Animation.Name)
-        UpdateAnimationRecord(Player, Track, StrId, InitialResolved)
-
-        if AdvancedEntries[StrId] then
-            local Entry = AdvancedEntries[StrId]
-            Entry.Plays += 1
-            Entry.Last = os.date("%X")
-            Entry.Sources[SourcePath] = true
-
-            Entry.StatsLabel.Text = string.format("plays: %d | last: %s", Entry.Plays, Entry.Last)
-
-            local SourceList = {}
-            for S in pairs(Entry.Sources) do
-                table.insert(SourceList, S)
-            end
-            Entry.SourcesLabel.Text = "sources: " .. table.concat(SourceList, ", ")
-            return
-        end
-
-        UniqueCount += 1
-        TitleLabel.Text = string.format("Animation Tracker (%d unique)", UniqueCount)
-
-        local EntryContainer = Instance.new("TextButton")
-        EntryContainer.Name = "Entry_" .. StrId
-        EntryContainer.BackgroundTransparency = 1
-        EntryContainer.BorderSizePixel = 0
-        EntryContainer.Size = UDim2.new(1, -6, 0, 64)
-        EntryContainer.Text = ""
-        EntryContainer.AutoButtonColor = false
-        EntryContainer.Parent = ScrollFrame
-
-        local DisplayHeader = (string.find(InitialResolved, "^Animation:") and InitialResolved) or ("Animation: " .. InitialResolved)
-
-        local Line1 = Instance.new("TextLabel")
-        Line1.Name = "Line1"
-        Line1.BackgroundTransparency = 1
-        Line1.Position = UDim2.new(0, 0, 0, 0)
-        Line1.Size = UDim2.new(1, 0, 0, 15)
-        Line1.Font = Enum.Font.Code
-        Line1.TextSize = 12
-        Line1.TextColor3 = Color3.fromRGB(225, 225, 225)
-        Line1.TextXAlignment = Enum.TextXAlignment.Left
-        Line1.TextTruncate = Enum.TextTruncate.AtEnd
-        Line1.Text = DisplayHeader
-        Line1.Parent = EntryContainer
-
-        local Line2 = Instance.new("TextLabel")
-        Line2.Name = "Line2"
-        Line2.BackgroundTransparency = 1
-        Line2.Position = UDim2.new(0, 0, 0, 15)
-        Line2.Size = UDim2.new(1, 0, 0, 15)
-        Line2.Font = Enum.Font.Code
-        Line2.TextSize = 12
-        Line2.TextColor3 = Color3.fromRGB(225, 225, 225)
-        Line2.TextXAlignment = Enum.TextXAlignment.Left
-        Line2.TextTruncate = Enum.TextTruncate.AtEnd
-        Line2.Text = RawId
-        Line2.Parent = EntryContainer
-
-        local Line3 = Instance.new("TextLabel")
-        Line3.Name = "Line3"
-        Line3.BackgroundTransparency = 1
-        Line3.Position = UDim2.new(0, 0, 0, 30)
-        Line3.Size = UDim2.new(1, 0, 0, 15)
-        Line3.Font = Enum.Font.Code
-        Line3.TextSize = 12
-        Line3.TextColor3 = Color3.fromRGB(225, 225, 225)
-        Line3.TextXAlignment = Enum.TextXAlignment.Left
-        Line3.Text = string.format("plays: 1 | last: %s", os.date("%X"))
-        Line3.Parent = EntryContainer
-
-        local Line4 = Instance.new("TextLabel")
-        Line4.Name = "Line4"
-        Line4.BackgroundTransparency = 1
-        Line4.Position = UDim2.new(0, 0, 0, 45)
-        Line4.Size = UDim2.new(1, 0, 0, 15)
-        Line4.Font = Enum.Font.Code
-        Line4.TextSize = 12
-        Line4.TextColor3 = Color3.fromRGB(225, 225, 225)
-        Line4.TextXAlignment = Enum.TextXAlignment.Left
-        Line4.TextTruncate = Enum.TextTruncate.AtEnd
-        Line4.Text = "sources: " .. SourcePath
-        Line4.Parent = EntryContainer
-
-        EntryContainer.Activated:Connect(function()
-            pcall(SetClipboard, StrId)
-            local PrevColor = Line1.TextColor3
-            local PrevText = Line1.Text
-            Line1.Text = "Copied: " .. StrId
-            Line1.TextColor3 = Color3.fromRGB(60, 240, 140)
-            task.delay(1, function()
-                if Line1 and Line1.Parent then
-                    Line1.Text = PrevText
-                    Line1.TextColor3 = PrevColor
-                end
-            end)
-        end)
-
-        AdvancedEntries[StrId] = {
-            Plays = 1,
-            Last = os.date("%X"),
-            Sources = { [SourcePath] = true },
-            TitleLabel = Line1,
-            StatsLabel = Line3,
-            SourcesLabel = Line4,
-        }
-
-        task.spawn(function()
-            local Fetched = ResolveAnimationName(StrId, Track.Name, Track.Animation and Track.Animation.Name)
-            if Fetched and Fetched ~= "" and Line1 and Line1.Parent then
-                Line1.Text = (string.find(Fetched, "^Animation:") and Fetched) or ("Animation: " .. Fetched)
-            end
-        end)
+local Dragging, DragStart, StartPosition
+TitleBar.InputBegan:Connect(function(Input)
+    if Input.UserInputType == Enum.UserInputType.MouseButton1 then
+        Dragging, DragStart, StartPosition = true, Input.Position, Main.Position
     end
-
-    local function ScanPlayerAdvanced(Player: Player)
-        if not Player or not Player.Character then return end
-        local Humanoid = Player.Character:FindFirstChildOfClass("Humanoid")
-        if not Humanoid then return end
-
-        local Tracks = Humanoid:GetPlayingAnimationTracks()
-        for _, Track in ipairs(Tracks) do
-            local Anim = Track.Animation
-            if Anim and Anim.AnimationId and Anim.AnimationId ~= "" then
-                local StrId = string.match(Anim.AnimationId, "%d+")
-                if StrId and StrId ~= "" then
-                    local NumId = tonumber(StrId)
-                    if NumId and GetEnv.SkipRobloxOwnedAnimations then
-                        local IsRobloxOwned = CheckRobloxOwned(NumId)
-                        if IsRobloxOwned then
-                            continue
-                        end
-                    end
-                    task.spawn(LogAdvancedAnimation, Player, Track, StrId, NumId or 0)
-                end
-            end
-        end
+end)
+TitleBar.InputEnded:Connect(function(Input)
+    if Input.UserInputType == Enum.UserInputType.MouseButton1 then Dragging = false end
+end)
+UserInputService.InputChanged:Connect(function(Input)
+    if Dragging and Input.UserInputType == Enum.UserInputType.MouseMovement then
+        local Delta = Input.Position - DragStart
+        Main.Position = UDim2.new(StartPosition.X.Scale, StartPosition.X.Offset + Delta.X, StartPosition.Y.Scale, StartPosition.Y.Offset + Delta.Y)
     end
+end)
 
-    task.spawn(function()
-        while true do
-            for _, Player in ipairs(Players:GetPlayers()) do
-                pcall(ScanPlayerAdvanced, Player)
-            end
-            task.wait(0.2)
-        end
-    end)
-else
-    local MainFrame = Instance.new("Frame")
-    MainFrame.Name = "MainFrame"
-    MainFrame.BackgroundColor3 = Color3.fromRGB(44, 47, 51)
-    MainFrame.BorderSizePixel = 0
-    MainFrame.Position = UDim2.new(0.1, 0, 0.2, 0)
-    MainFrame.Size = UDim2.new(0, 260, 0, 360)
-    MainFrame.Active = true
-    MainFrame.Parent = ScreenGui
-
-    local MainCorner = Instance.new("UICorner")
-    MainCorner.CornerRadius = UDim.new(0, 6)
-    MainCorner.Parent = MainFrame
-
-    local DragBar = Instance.new("Frame")
-    DragBar.Name = "DragBar"
-    DragBar.BackgroundColor3 = Color3.fromRGB(114, 137, 218)
-    DragBar.BorderSizePixel = 0
-    DragBar.Size = UDim2.new(1, 0, 0, 22)
-    DragBar.Parent = MainFrame
-
-    local DragCorner = Instance.new("UICorner")
-    DragCorner.CornerRadius = UDim.new(0, 6)
-    DragCorner.Parent = DragBar
-
-    local DragBottomCover = Instance.new("Frame")
-    DragBottomCover.BackgroundColor3 = Color3.fromRGB(114, 137, 218)
-    DragBottomCover.BorderSizePixel = 0
-    DragBottomCover.Position = UDim2.new(0, 0, 1, -6)
-    DragBottomCover.Size = UDim2.new(1, 0, 0, 6)
-    DragBottomCover.Parent = DragBar
-
-    MakeDraggable(MainFrame, DragBar)
-
-    local SearchContainer = Instance.new("Frame")
-    SearchContainer.Name = "SearchContainer"
-    SearchContainer.BackgroundColor3 = Color3.fromRGB(35, 39, 42)
-    SearchContainer.BorderSizePixel = 0
-    SearchContainer.Position = UDim2.new(0, 0, 0, 22)
-    SearchContainer.Size = UDim2.new(1, 0, 0, 32)
-    SearchContainer.Parent = MainFrame
-
-    local SearchBox = Instance.new("TextBox")
-    SearchBox.Name = "SearchBox"
-    SearchBox.BackgroundTransparency = 1
-    SearchBox.Size = UDim2.new(1, -16, 1, 0)
-    SearchBox.Position = UDim2.new(0, 8, 0, 0)
-    SearchBox.PlaceholderText = "Player name (blank = everyone)"
-    SearchBox.PlaceholderColor3 = Color3.fromRGB(145, 150, 160)
-    SearchBox.Text = ""
-    SearchBox.TextColor3 = Color3.fromRGB(245, 245, 245)
-    SearchBox.TextSize = 13
-    SearchBox.Font = Enum.Font.Gotham
-    SearchBox.TextXAlignment = Enum.TextXAlignment.Center
-    SearchBox.ClearTextOnFocus = false
-    SearchBox.Parent = SearchContainer
-
-    local SearchDivider = Instance.new("Frame")
-    SearchDivider.BackgroundColor3 = Color3.fromRGB(32, 34, 37)
-    SearchDivider.BorderSizePixel = 0
-    SearchDivider.Position = UDim2.new(0, 0, 1, -1)
-    SearchDivider.Size = UDim2.new(1, 0, 0, 1)
-    SearchDivider.Parent = SearchContainer
-
-    local ScrollFrame = Instance.new("ScrollingFrame")
-    ScrollFrame.Name = "AnimationList"
-    ScrollFrame.BackgroundColor3 = Color3.fromRGB(44, 47, 51)
-    ScrollFrame.BorderSizePixel = 0
-    ScrollFrame.Position = UDim2.new(0, 0, 0, 86)
-    ScrollFrame.Size = UDim2.new(1, 0, 1, -86)
-    ScrollFrame.AutomaticCanvasSize = Enum.AutomaticSize.Y
-    ScrollFrame.CanvasSize = UDim2.new(0, 0, 0, 0)
-    ScrollFrame.ScrollBarThickness = 4
-    ScrollFrame.ScrollBarImageColor3 = Color3.fromRGB(32, 34, 37)
-    ScrollFrame.Parent = MainFrame
-
-    CreateSaveButton(MainFrame, UDim2.new(0, 8, 0, 57), UDim2.new(1, -16, 0, 24))
-
-    local ListLayout = Instance.new("UIListLayout")
-    ListLayout.Padding = UDim.new(0, 1)
-    ListLayout.SortOrder = Enum.SortOrder.LayoutOrder
-    ListLayout.Parent = ScrollFrame
-
-    local AnimationTable: { [string]: boolean } = {}
-    local CreatedEntries: { { Button: TextButton, PlayerName: string, Id: string } } = {}
-    local CurrentFilter = ""
-
-    local function CreateButton(PlayerName: string, AnimName: string, StrId: string)
-        local Button = Instance.new("TextButton")
-        Button.Name = PlayerName .. "_" .. StrId
-        Button.BorderSizePixel = 0
-        Button.BackgroundColor3 = Color3.fromRGB(35, 39, 42)
-        Button.Size = UDim2.new(1, 0, 0, 48)
-        Button.Text = ""
-        Button.AutoButtonColor = true
-        Button.Parent = ScrollFrame
-
-        local FormattedName = (string.find(AnimName, "^Animation:") and AnimName) or ("Animation: " .. AnimName)
-
-        local NameLabel = Instance.new("TextLabel")
-        NameLabel.Name = "HeaderLabel"
-        NameLabel.BackgroundTransparency = 1
-        NameLabel.Position = UDim2.new(0, 8, 0, 4)
-        NameLabel.Size = UDim2.new(1, -16, 0, 20)
-        NameLabel.TextSize = 14
-        NameLabel.Font = Enum.Font.Gotham
-        NameLabel.TextColor3 = Color3.fromRGB(245, 245, 245)
-        NameLabel.TextXAlignment = Enum.TextXAlignment.Left
-        NameLabel.TextTruncate = Enum.TextTruncate.AtEnd
-        NameLabel.Text = PlayerName .. " - " .. FormattedName
-        NameLabel.Parent = Button
-
-        local IdLabel = Instance.new("TextLabel")
-        IdLabel.Name = "IdLabel"
-        IdLabel.BackgroundTransparency = 1
-        IdLabel.Position = UDim2.new(0, 8, 0, 24)
-        IdLabel.Size = UDim2.new(1, -16, 0, 18)
-        IdLabel.TextSize = 13
-        IdLabel.Font = Enum.Font.Gotham
-        IdLabel.TextColor3 = Color3.fromRGB(180, 185, 195)
-        IdLabel.TextXAlignment = Enum.TextXAlignment.Left
-        IdLabel.Text = StrId
-        IdLabel.Parent = Button
-
-        local Filter = string.lower(CurrentFilter)
-        if Filter ~= "" and not string.find(string.lower(PlayerName), Filter, 1, true) then
-            Button.Visible = false
-        end
-
-        Button.Activated:Connect(function()
-            pcall(SetClipboard, StrId)
-            local OrigText = IdLabel.Text
-            local OrigColor = IdLabel.TextColor3
-            IdLabel.Text = "✓ Copied to clipboard (" .. StrId .. ")"
-            IdLabel.TextColor3 = Color3.fromRGB(60, 240, 140)
-            task.delay(1, function()
-                if IdLabel and IdLabel.Parent then
-                    IdLabel.Text = OrigText
-                    IdLabel.TextColor3 = OrigColor
-                end
-            end)
-        end)
-
-        table.insert(CreatedEntries, {
-            Button = Button,
-            PlayerName = PlayerName,
-            Id = StrId
-        })
-    end
-
-    local function UpdateFilter()
-        local Text = string.lower(SearchBox.Text:gsub("^%s*(.-)%s*$", "%1"))
-        CurrentFilter = Text
-        for _, Item in ipairs(CreatedEntries) do
-            if Text == "" or string.find(string.lower(Item.PlayerName), Text, 1, true) then
-                Item.Button.Visible = true
-            else
-                Item.Button.Visible = false
-            end
-        end
-    end
-    SearchBox:GetPropertyChangedSignal("Text"):Connect(UpdateFilter)
-
-    local function ScanPlayer(Player: Player)
-        if not Player or not Player.Character then return end
-        local Humanoid = Player.Character:FindFirstChildOfClass("Humanoid")
-        if not Humanoid then return end
-
-        local Tracks = Humanoid:GetPlayingAnimationTracks()
-        for _, Track in ipairs(Tracks) do
-            local Anim = Track.Animation
-            if Anim and Anim.AnimationId and Anim.AnimationId ~= "" then
-                local StrId = string.match(Anim.AnimationId, "%d+")
-                if StrId and StrId ~= "" then
-                    local NumId = tonumber(StrId)
-                    if NumId and GetEnv.SkipRobloxOwnedAnimations then
-                        local IsRobloxOwned = CheckRobloxOwned(NumId)
-                        if IsRobloxOwned then
-                            continue
-                        end
-                    end
-
-                    UpdateAnimationRecord(Player, Track, StrId)
-
-                    local Signature = Player.Name .. "_" .. StrId
-                    if not AnimationTable[Signature] then
-                        AnimationTable[Signature] = true
-                        task.spawn(function()
-                            local AnimName = ResolveAnimationName(StrId, Track.Name, Track.Animation and Track.Animation.Name)
-                            CreateButton(Player.Name, AnimName, StrId)
-                        end)
-                    end
-                end
-            end
-        end
-    end
-
-    task.spawn(function()
-        while true do
-            local FilterText = string.lower(CurrentFilter)
-            local PlayerList = Players:GetPlayers()
-            for _, Player in ipairs(PlayerList) do
-                if FilterText == "" or string.find(string.lower(Player.Name), FilterText, 1, true) or string.find(string.lower(Player.DisplayName), FilterText, 1, true) then
-                    pcall(ScanPlayer, Player)
-                end
-            end
-            task.wait(0.2)
-        end
-    end)
+local SearchBox
+if not Advanced then
+    SearchBox = make("TextBox", Main, {
+        BackgroundColor3 = Color3.fromRGB(35, 39, 42),
+        BorderSizePixel = 0,
+        Position = UDim2.new(0, 0, 0, 28),
+        Size = UDim2.new(1, 0, 0, 26),
+        PlaceholderText = "Player name (blank = everyone)",
+        PlaceholderColor3 = Color3.fromRGB(145, 150, 160),
+        Text = "",
+        TextColor3 = Color3.new(1, 1, 1),
+        TextSize = 12,
+        Font = Enum.Font.Gotham,
+        TextXAlignment = Enum.TextXAlignment.Center,
+        ClearTextOnFocus = false,
+    })
 end
+
+local SaveButton = make("TextButton", Main, {
+    BackgroundColor3 = Color3.fromRGB(60, 180, 110),
+    BorderSizePixel = 0,
+    Size = UDim2.new(0, Advanced and 180 or 0, 0, 22),
+    Position = Advanced and UDim2.new(0.5, 0, 0, 30) or UDim2.new(0, 8, 0, 57),
+    AnchorPoint = Advanced and Vector2.new(0.5, 0) or Vector2.new(0, 0),
+    Text = "save anims to workspace",
+    TextColor3 = Color3.new(1, 1, 1),
+    TextSize = 12,
+    Font = Enum.Font.Gotham,
+})
+if not Advanced then SaveButton.Size = UDim2.new(1, -16, 0, 24) end
+make("UICorner", SaveButton, { CornerRadius = UDim.new(0, 4) })
+SaveButton.Activated:Connect(function()
+    local Success, Message = saveAnimations()
+    SaveButton.Text = Success and Message or "error: " .. Message
+    SaveButton.BackgroundColor3 = Success and Color3.fromRGB(60, 180, 110) or Color3.fromRGB(190, 70, 70)
+    task.delay(1.5, function()
+        if SaveButton.Parent then
+            SaveButton.Text = "save anims to workspace"
+            SaveButton.BackgroundColor3 = Color3.fromRGB(60, 180, 110)
+        end
+    end)
+end)
+
+local List = make("ScrollingFrame", Main, {
+    BackgroundTransparency = 1,
+    BorderSizePixel = 0,
+    Position = Advanced and UDim2.new(0, 8, 0, 56) or UDim2.new(0, 0, 0, 86),
+    Size = Advanced and UDim2.new(1, -12, 1, -62) or UDim2.new(1, 0, 1, -86),
+    AutomaticCanvasSize = Enum.AutomaticSize.Y,
+    CanvasSize = UDim2.new(0, 0, 0, 0),
+    ScrollBarThickness = 4,
+})
+make("UIListLayout", List, { Padding = UDim.new(0, Advanced and 8 or 1), SortOrder = Enum.SortOrder.LayoutOrder })
+
+local UiEntries, Filter = {}, ""
+local function addEntry(PlayerName, Name, Id, Source)
+    local Key = (Advanced and Id or PlayerName .. ":" .. Id)
+    if UiEntries[Key] then return end
+    local Button = make("TextButton", List, {
+        BackgroundColor3 = Advanced and Color3.fromRGB(30, 30, 30) or Color3.fromRGB(35, 39, 42),
+        BorderSizePixel = 0,
+        Size = UDim2.new(1, -6, 0, Advanced and 50 or 44),
+        Text = PlayerName .. " - Animation: " .. Name .. "\n" .. Id .. "\n" .. Source,
+        TextColor3 = Color3.fromRGB(235, 235, 235),
+        TextSize = 11,
+        Font = Enum.Font.Code,
+        TextXAlignment = Enum.TextXAlignment.Left,
+        TextYAlignment = Enum.TextYAlignment.Top,
+    })
+    Button.Activated:Connect(function() pcall(SetClipboard, Id) end)
+    UiEntries[Key] = { Button = Button, PlayerName = string.lower(PlayerName) }
+    if Filter ~= "" and not string.find(UiEntries[Key].PlayerName, Filter, 1, true) then Button.Visible = false end
+end
+
+local function updateFilter()
+    Filter = SearchBox and string.lower(SearchBox.Text:gsub("^%s*(.-)%s*$", "%1")) or ""
+    for _, Entry in pairs(UiEntries) do
+        Entry.Button.Visible = Filter == "" or string.find(Entry.PlayerName, Filter, 1, true) ~= nil
+    end
+end
+if SearchBox then SearchBox:GetPropertyChangedSignal("Text"):Connect(updateFilter) end
+
+local function scan(Player)
+    if not Player.Character then return end
+    local Humanoid = Player.Character:FindFirstChildOfClass("Humanoid")
+    if not Humanoid then return end
+    for _, Track in ipairs(Humanoid:GetPlayingAnimationTracks()) do
+        local Animation = Track.Animation
+        local Id = Animation and string.match(Animation.AnimationId or "", "%d+")
+        if Id and (not Env.SkipRobloxOwnedAnimations or not isRobloxOwned(Id)) then
+            local Name = resolveName(Id, Track, Animation)
+            updateRecord(Player, Track, Id, Name)
+            addEntry(Player.Name, Name, Id, "Workspace.Players." .. Player.Name .. ".Humanoid")
+        end
+    end
+end
+
+task.spawn(function()
+    while ScreenGui.Parent do
+        for _, Player in ipairs(Players:GetPlayers()) do pcall(scan, Player) end
+        local Count = 0
+        for _ in pairs(RecordsById) do Count += 1 end
+        Title.Text = string.format("Animation Tracker (%d unique)", Count)
+        task.wait(0.25)
+    end
+end)
