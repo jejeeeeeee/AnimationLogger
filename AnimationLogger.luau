@@ -1,21 +1,14 @@
-local function getService(Name)
-    local Success, Service = pcall(function()
-        return game:GetService(Name)
-    end)
-    return Success and Service or nil
-end
-
-local Players = getService("Players")
-local UserInputService = getService("UserInputService")
+local Players = game.Players
+local UserInputService = game.UserInputService
 local LocalPlayer = Players and Players.LocalPlayer
 if not Players or not UserInputService then
     warn("Animation logger: Roblox services are unavailable")
     return
 end
 
-local CoreGui = getService("CoreGui")
-local MarketplaceService = getService("MarketplaceService")
-local HttpService = getService("HttpService")
+local CoreGui = game.CoreGui
+local MarketplaceService = game.MarketplaceService
+local HttpService = game.HttpService
 
 local Env = _G
 if type(getgenv) == "function" then
