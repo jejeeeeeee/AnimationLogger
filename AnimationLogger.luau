@@ -147,15 +147,12 @@ local function ResolveAnimationName(IdStr: string, TrackName: string?, AnimInsta
 end
 
 local WriteFile: any = rawget(GetEnv, "writefile") or rawget(_G, "writefile")
+local ReadFile: any = rawget(GetEnv, "readfile") or rawget(_G, "readfile")
 local AnimationRecords: { [string]: {
-    PlayerName: string,
-    DisplayName: string,
     Id: string,
     Name: string,
     Weight: number,
-    WeightTarget: number,
     Speed: number,
-    LastSeen: string,
 } } = {}
 
 local function UpdateAnimationRecord(Player: Player, Track: AnimationTrack, StrId: string, AnimName: string?)
@@ -165,14 +162,10 @@ local function UpdateAnimationRecord(Player: Player, Track: AnimationTrack, StrI
     local ResolvedName = AnimName or ResolveAnimationName(StrId, Track.Name, Anim and Anim.Name)
 
     AnimationRecords[Signature] = {
-        PlayerName = Player.Name,
-        DisplayName = Player.DisplayName,
         Id = StrId,
         Name = ResolvedName,
         Weight = tonumber(Track.WeightCurrent) or 0,
-        WeightTarget = tonumber(Track.WeightTarget) or 0,
         Speed = tonumber(Track.Speed) or 0,
-        LastSeen = os.date("!%Y-%m-%dT%H:%M:%SZ"),
     }
 
     if Existing and Existing.Name ~= "" and (ResolvedName == "Unknown" or ResolvedName == "Animation") then
@@ -180,38 +173,149 @@ local function UpdateAnimationRecord(Player: Player, Track: AnimationTrack, StrI
     end
 end
 
+local function PrettyJson(Value: any, Indent: number?): string
+    local CurrentIndent = Indent or 0
+    local Prefix = string.rep("    ", CurrentIndent)
+    local ChildPrefix = string.rep("    ", CurrentIndent + 1)
+    local ValueType = type(Value)
+
+    if ValueType == "string" then
+        return HttpService:JSONEncode(Value)
+    elseif ValueType == "number" or ValueType == "boolean" then
+        return tostring(Value)
+    elseif Value == nil then
+        return "null"
+    elseif ValueType ~= "table" then
+        return HttpService:JSONEncode(tostring(Value))
+    end
+
+    local IsArray = true
+    local ItemCount = 0
+    for Key in pairs(Value) do
+        ItemCount += 1
+        if type(Key) ~= "number" or Key < 1 or Key % 1 ~= 0 then
+            IsArray = false
+        end
+    end
+    IsArray = IsArray and (ItemCount == #Value)
+
+    local Parts = {}
+    if IsArray then
+        for _, Item in ipairs(Value) do
+            table.insert(Parts, ChildPrefix .. PrettyJson(Item, CurrentIndent + 1))
+        end
+        if #Parts == 0 then
+            return "[]"
+        end
+        return "[\n" .. table.concat(Parts, ",\n") .. "\n" .. Prefix .. "]"
+    end
+
+    local Keys = {}
+    for Key in pairs(Value) do
+        table.insert(Keys, tostring(Key))
+    end
+    table.sort(Keys)
+
+    for _, Key in ipairs(Keys) do
+        table.insert(Parts, ChildPrefix .. HttpService:JSONEncode(Key) .. ": " .. PrettyJson(Value[Key], CurrentIndent + 1))
+    end
+    if #Parts == 0 then
+        return "{}"
+    end
+    return "{\n" .. table.concat(Parts, ",\n") .. "\n" .. Prefix .. "}"
+end
+
+local function ReadSavedAnimations(): { [string]: { Id: string, Name: string, Weight: number, Speed: number } }
+    local SavedById = {}
+    if type(ReadFile) ~= "function" then
+        return SavedById
+    end
+
+    local ReadSuccess, Contents = pcall(function()
+        return ReadFile("animations.json")
+    end)
+    if not ReadSuccess or type(Contents) ~= "string" or Contents == "" then
+        return SavedById
+    end
+
+    local DecodeSuccess, Data = pcall(function()
+        return HttpService:JSONDecode(Contents)
+    end)
+    if not DecodeSuccess or type(Data) ~= "table" then
+        return SavedById
+    end
+
+    local Source = Data.Animations or Data
+    if type(Source) ~= "table" then
+        return SavedById
+    end
+
+    local function AddRecord(Key: any, Record: any)
+        if type(Record) ~= "table" then
+            return
+        end
+
+        local Id = tostring(Record.Id or Record.AnimationId or Key or "")
+        if Id == "" then
+            return
+        end
+
+        SavedById[Id] = {
+            Id = Id,
+            Name = tostring(Record.Name or "Unknown"),
+            Weight = tonumber(Record.Weight or Record.AnimationWeight) or 0,
+            Weight = tonumber(Record.Weight) or 0,
+            Speed = tonumber(Record.Speed) or 0,
+        }
+    end
+
+    for Key, Record in pairs(Source) do
+        AddRecord(Key, Record)
+    end
+
+    return SavedById
+end
+
 local function SaveAnimationsToWorkspace(): (boolean, string)
     if type(WriteFile) ~= "function" then
         return false, "writefile unavailable"
     end
 
-    local Entries = {}
+    local SavedById = ReadSavedAnimations()
+    local AddedCount = 0
     for _, Record in pairs(AnimationRecords) do
-        table.insert(Entries, Record)
+        if not SavedById[Record.Id] then
+            SavedById[Record.Id] = {
+                Id = Record.Id,
+                Name = Record.Name,
+                Weight = Record.Weight,
+                Speed = Record.Speed,
+            }
+            AddedCount += 1
+        end
     end
 
+    local Entries = {}
+    for _, Record in pairs(SavedById) do
+        table.insert(Entries, Record)
+    end
     table.sort(Entries, function(A, B)
-        if A.PlayerName == B.PlayerName then
-            return A.Id < B.Id
-        end
-        return A.PlayerName < B.PlayerName
+        return A.Id < B.Id
     end)
 
     local Payload = {
-        SavedAt = os.date("!%Y-%m-%dT%H:%M:%SZ"),
-        Count = #Entries,
         Animations = Entries,
     }
 
     local Success = pcall(function()
-        WriteFile("animations.json", HttpService:JSONEncode(Payload))
+        WriteFile("animations.json", PrettyJson(Payload))
     end)
 
     if not Success then
         return false, "save failed"
     end
 
-    return true, string.format("saved %d anims", #Entries)
+    return true, string.format("saved %d animations", AddedCount)
 end
 
 local function CreateSaveButton(Parent: Instance, Position: UDim2, Size: UDim2): TextButton
@@ -233,13 +337,13 @@ local function CreateSaveButton(Parent: Instance, Position: UDim2, Size: UDim2):
     Corner.Parent = Button
 
     Button.Activated:Connect(function()
+        local OriginalText = "save anims to workspace"
         local Success, Message = SaveAnimationsToWorkspace()
-        local PreviousText = Button.Text
         Button.Text = Success and Message or ("error: " .. Message)
         Button.BackgroundColor3 = Success and Color3.fromRGB(60, 180, 110) or Color3.fromRGB(190, 70, 70)
         task.delay(1.5, function()
             if Button and Button.Parent then
-                Button.Text = PreviousText
+                Button.Text = OriginalText
                 Button.BackgroundColor3 = Color3.fromRGB(60, 180, 110)
             end
         end)
@@ -677,5 +781,3 @@ else
         end
     end)
 end
-
-
