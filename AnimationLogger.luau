@@ -6,6 +6,22 @@ local HttpService = game:GetService("HttpService")
 local LocalPlayer = Players.LocalPlayer
 
 local GetEnv: any = (getgenv and getgenv()) or getfenv()
+local GetEnv: any = _G
+if type(getgenv) == "function" then
+    local EnvSuccess, Env = pcall(getgenv)
+    if EnvSuccess and type(Env) == "table" then
+        GetEnv = Env
+    end
+elseif type(getfenv) == "function" then
+    local EnvSuccess, Env = pcall(getfenv)
+    if EnvSuccess and type(Env) == "table" then
+        GetEnv = Env
+    end
+end
+
+if type(GetEnv) ~= "table" then
+    GetEnv = _G
+end
 if GetEnv.SkipRobloxOwnedAnimations == nil then
     GetEnv.SkipRobloxOwnedAnimations = false
 end
@@ -26,19 +42,42 @@ if not SetClipboard then
 end
 
 local ParentGui: any = nil
+local PlayerGui: any = nil
+if LocalPlayer then
+    pcall(function()
+        PlayerGui = LocalPlayer:FindFirstChildOfClass("PlayerGui") or LocalPlayer:WaitForChild("PlayerGui", 10)
+    end)
+end
+
 pcall(function()
     local GetHui: any = rawget(GetEnv, "gethui")
     if type(GetHui) == "function" then
         ParentGui = GetHui()
+    elseif PlayerGui then
+        ParentGui = PlayerGui
     elseif CoreGui then
         ParentGui = CoreGui
     end
 end)
 if not ParentGui then
     ParentGui = LocalPlayer:WaitForChild("PlayerGui")
+    ParentGui = PlayerGui or CoreGui
 end
 
+local ParentGuiUsable = false
+pcall(function()
+    ParentGui:FindFirstChild("__AnimationLoggerParentCheck")
+    ParentGuiUsable = true
+end)
+if not ParentGuiUsable then
+    ParentGui = PlayerGui or CoreGui
+end
+
+local OldGui = nil
+pcall(function()
 local OldGui = ParentGui:FindFirstChild("AnimTrackerUI_🗿") or ParentGui:FindFirstChild("AnimLoggerUI_🗿")
+    OldGui = ParentGui:FindFirstChild("AnimTrackerUI_🗿") or ParentGui:FindFirstChild("AnimLoggerUI_🗿")
+end)
 if OldGui then
     OldGui:Destroy()
 end
@@ -48,7 +87,20 @@ ScreenGui.Name = "AnimTrackerUI_🗿"
 ScreenGui.DisplayOrder = 500
 ScreenGui.ResetOnSpawn = false
 ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+local ParentSuccess = pcall(function()
 ScreenGui.Parent = ParentGui
+    ScreenGui.Parent = ParentGui
+end)
+if (not ParentSuccess or not ScreenGui.Parent) and PlayerGui then
+    pcall(function()
+        ScreenGui.Parent = PlayerGui
+    end)
+end
+
+if not ScreenGui.Parent then
+    warn("Animation logger: unable to create a visible UI")
+    return
+end
 
 local function MakeDraggable(Frame: Frame, DragHandle: Frame)
     local Dragging = false
@@ -149,14 +201,29 @@ end
 local WriteFile: any = rawget(GetEnv, "writefile") or rawget(_G, "writefile")
 local ReadFile: any = rawget(GetEnv, "readfile") or rawget(_G, "readfile")
 
+local function SanitizeGameName(GameName: string): string
+    GameName = GameName:gsub("[<>:\"/]", "_")
+    GameName = GameName:gsub("\\", "_")
+    GameName = GameName:gsub("[|?*]", "_")
+    GameName = GameName:gsub("%c", "_"):gsub("%s+$", "")
+
+    if GameName == "" then
+        GameName = tostring(game.GameId)
+    end
+
+    return GameName
+end
+
 local function GetGameFileName(): string
     local GameName = tostring(game.Name)
+    local GameName = SanitizeGameName(tostring(game.Name))
     local Success, Info = pcall(function()
         return MarketplaceService:GetProductInfo(game.GameId, Enum.InfoType.Game)
     end)
 
     if Success and Info and Info.Name and Info.Name ~= "" then
         GameName = tostring(Info.Name)
+        GameName = SanitizeGameName(tostring(Info.Name))
     elseif game.GameId and game.GameId ~= 0 then
         GameName = "Game_" .. tostring(game.GameId)
     end
@@ -174,6 +241,13 @@ local function GetGameFileName(): string
 end
 
 local AnimationFileName = GetGameFileName()
+local AnimationFileName = "Animations_" .. SanitizeGameName(tostring(game.Name)) .. ".json"
+task.spawn(function()
+    local ResolvedName = GetGameFileName()
+    if type(ResolvedName) == "string" and ResolvedName ~= "" then
+        AnimationFileName = ResolvedName
+    end
+end)
 local AnimationRecords: { [string]: {
     Id: string,
     Name: string,
