@@ -3,6 +3,14 @@ local CoreGui = game:GetService("CoreGui")
 local UserInputService = game:GetService("UserInputService")
 local MarketplaceService = game:GetService("MarketplaceService")
 local HttpService = game:GetService("HttpService")
+local MarketplaceService: any = nil
+local HttpService: any = nil
+pcall(function()
+    MarketplaceService = game:GetService("MarketplaceService")
+end)
+pcall(function()
+    HttpService = game:GetService("HttpService")
+end)
 local LocalPlayer = Players.LocalPlayer
 
 local GetEnv: any = (getgenv and getgenv()) or getfenv()
