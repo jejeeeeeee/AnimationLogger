@@ -93,15 +93,35 @@ local function resolveName(Id, Track, Animation)
     local Name = Track and Track.Name
     if not Name or Name == "" or Name == "Animation" or Name == "Anim" then
         Name = Animation and Animation.Name
+    local TrackName = Track and Track.Name
+    local AnimationName = Animation and Animation.Name
+    if NameCache[Id] and NameCache[Id] ~= "" and NameCache[Id] ~= "Animation" then
+        return NameCache[Id]
     end
     if (not Name or Name == "") and MarketplaceService then
+    if TrackName and TrackName ~= "" and TrackName ~= "Animation" and TrackName ~= "AnimationTrack" and TrackName ~= "Anim" then
+        NameCache[Id] = TrackName
+        return TrackName
+    end
+    if AnimationName and AnimationName ~= "" and AnimationName ~= "Animation" and AnimationName ~= "AnimationTrack" and AnimationName ~= "Anim" then
+        NameCache[Id] = AnimationName
+        return AnimationName
+    end
+    if MarketplaceService then
         local Success, Info = pcall(function()
             return MarketplaceService:GetProductInfo(tonumber(Id), Enum.InfoType.Asset)
         end)
         if Success and Info then Name = Info.Name end
+        if Success and Info and Info.Name and Info.Name ~= "" then
+            NameCache[Id] = Info.Name
+            return Info.Name
+        end
     end
     NameCache[Id] = (Name and Name ~= "" and Name) or "Unknown"
     return NameCache[Id]
+    local Fallback = (TrackName and TrackName ~= "") and TrackName or AnimationName or "Unknown"
+    NameCache[Id] = Fallback
+    return Fallback
 end
 
 local function isRobloxOwned(Id)
@@ -117,14 +137,22 @@ local Records = {}
 local RecordsById = {}
 local function updateRecord(Player, Track, Id, Name)
     local Animation = Track.Animation
+    local Key = tostring(Player.UserId) .. ":" .. Id
+    local Existing = Records[Key]
+    local ResolvedName = Name or resolveName(Id, Track, Animation)
+    if Existing and (ResolvedName == "Unknown" or ResolvedName == "Animation") then
+        ResolvedName = Existing.Name
+    end
     local Record = {
         Id = Id,
         Name = Name or resolveName(Id, Track, Animation),
+        Name = ResolvedName,
         Source = "Workspace.Players." .. Player.Name .. ".Humanoid",
         Weight = tonumber(Track.WeightCurrent) or 0,
         Speed = tonumber(Track.Speed) or 0,
     }
     Records[tostring(Player.UserId) .. ":" .. Id] = Record
+    Records[Key] = Record
     RecordsById[Id] = Record
 end
 
@@ -184,6 +212,8 @@ local function saveAnimations()
         if not Saved[Id] then
             Saved[Id] = Record
             Added += 1
+        elseif (Saved[Id].Name == "Animation" or Saved[Id].Name == "Unknown") and Record.Name ~= "Unknown" then
+            Saved[Id].Name = Record.Name
         end
     end
     local Entries = {}
