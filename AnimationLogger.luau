@@ -205,10 +205,12 @@ local Main = make("Frame", ScreenGui, {
     BackgroundColor3 = Advanced and Color3.fromRGB(30, 30, 30) or Color3.fromRGB(44, 47, 51),
     BorderSizePixel = 0,
     Position = UDim2.new(0.1, 0, 0.2, 0),
+    Position = Advanced and UDim2.new(0.08, 0, 0.15, 0) or UDim2.new(0.1, 0, 0.2, 0),
     Size = Advanced and UDim2.new(0, 370, 0, 420) or UDim2.new(0, 260, 0, 360),
     Active = true,
 })
 make("UICorner", Main, { CornerRadius = UDim.new(0, 5) })
+make("UICorner", Main, { CornerRadius = UDim.new(0, Advanced and 4 or 6) })
 
 local TitleBar = make("Frame", Main, {
     BackgroundTransparency = 1,
@@ -223,6 +225,26 @@ local Title = make("TextLabel", TitleBar, {
     Text = "Animation Tracker (0 unique)",
     TextXAlignment = Enum.TextXAlignment.Center,
 })
+local function makeDraggable(Frame, Handle)
+    local Dragging, DragStart, StartPosition, DragInput = false, nil, nil, nil
+    Handle.InputBegan:Connect(function(Input)
+        if Input.UserInputType == Enum.UserInputType.MouseButton1 or Input.UserInputType == Enum.UserInputType.Touch then
+            Dragging, DragStart, StartPosition = true, Input.Position, Frame.Position
+            Input.Changed:Connect(function()
+                if Input.UserInputState == Enum.UserInputState.End then Dragging = false end
+            end)
+        end
+    end)
+    Handle.InputChanged:Connect(function(Input)
+        if Input.UserInputType == Enum.UserInputType.MouseMovement or Input.UserInputType == Enum.UserInputType.Touch then DragInput = Input end
+    end)
+    UserInputService.InputChanged:Connect(function(Input)
+        if Dragging and Input == DragInput then
+            local Delta = Input.Position - DragStart
+            Frame.Position = UDim2.new(StartPosition.X.Scale, StartPosition.X.Offset + Delta.X, StartPosition.Y.Scale, StartPosition.Y.Offset + Delta.Y)
+        end
+    end)
+end
 
 local Dragging, DragStart, StartPosition
 TitleBar.InputBegan:Connect(function(Input)
@@ -253,8 +275,50 @@ if not Advanced then
         TextColor3 = Color3.new(1, 1, 1),
         TextSize = 12,
         Font = Enum.Font.Gotham,
+local Title, SearchBox, List
+if Advanced then
+    local TitleBar = make("Frame", Main, { BackgroundTransparency = 1, Size = UDim2.new(1, 0, 0, 28) })
+    Title = make("TextLabel", TitleBar, {
+        BackgroundTransparency = 1, Size = UDim2.new(1, 0, 1, 0), Font = Enum.Font.Code,
+        TextSize = 13, TextColor3 = Color3.new(1, 1, 1), Text = "Animation Tracker (0 unique)",
         TextXAlignment = Enum.TextXAlignment.Center,
         ClearTextOnFocus = false,
+    })
+    makeDraggable(Main, TitleBar)
+    List = make("ScrollingFrame", Main, {
+        BackgroundTransparency = 1, BorderSizePixel = 0, Position = UDim2.new(0, 8, 0, 56),
+        Size = UDim2.new(1, -12, 1, -62), AutomaticCanvasSize = Enum.AutomaticSize.Y,
+        CanvasSize = UDim2.new(0, 0, 0, 0), ScrollBarThickness = 5,
+    })
+else
+    local DragBar = make("Frame", Main, {
+        BackgroundColor3 = Color3.fromRGB(114, 137, 218), BorderSizePixel = 0,
+        Size = UDim2.new(1, 0, 0, 22),
+    })
+    make("UICorner", DragBar, { CornerRadius = UDim.new(0, 6) })
+    make("Frame", DragBar, {
+        BackgroundColor3 = Color3.fromRGB(114, 137, 218), BorderSizePixel = 0,
+        Position = UDim2.new(0, 0, 1, -6), Size = UDim2.new(1, 0, 0, 6),
+    })
+    makeDraggable(Main, DragBar)
+    local SearchContainer = make("Frame", Main, {
+        BackgroundColor3 = Color3.fromRGB(35, 39, 42), BorderSizePixel = 0,
+        Position = UDim2.new(0, 0, 0, 22), Size = UDim2.new(1, 0, 0, 32),
+    })
+    SearchBox = make("TextBox", SearchContainer, {
+        BackgroundTransparency = 1, Size = UDim2.new(1, -16, 1, 0), Position = UDim2.new(0, 8, 0, 0),
+        PlaceholderText = "Player name (blank = everyone)", PlaceholderColor3 = Color3.fromRGB(145, 150, 160),
+        Text = "", TextColor3 = Color3.fromRGB(245, 245, 245), TextSize = 13, Font = Enum.Font.Gotham,
+        TextXAlignment = Enum.TextXAlignment.Center, ClearTextOnFocus = false,
+    })
+    make("Frame", SearchContainer, {
+        BackgroundColor3 = Color3.fromRGB(32, 34, 37), BorderSizePixel = 0,
+        Position = UDim2.new(0, 0, 1, -1), Size = UDim2.new(1, 0, 0, 1),
+    })
+    List = make("ScrollingFrame", Main, {
+        BackgroundColor3 = Color3.fromRGB(44, 47, 51), BorderSizePixel = 0,
+        Position = UDim2.new(0, 0, 0, 86), Size = UDim2.new(1, 0, 1, -86),
+        AutomaticCanvasSize = Enum.AutomaticSize.Y, CanvasSize = UDim2.new(0, 0, 0, 0), ScrollBarThickness = 4,
     })
 end
 
@@ -262,12 +326,15 @@ local SaveButton = make("TextButton", Main, {
     BackgroundColor3 = Color3.fromRGB(60, 180, 110),
     BorderSizePixel = 0,
     Size = UDim2.new(0, Advanced and 180 or 0, 0, 22),
+    BackgroundColor3 = Color3.fromRGB(60, 180, 110), BorderSizePixel = 0,
     Position = Advanced and UDim2.new(0.5, 0, 0, 30) or UDim2.new(0, 8, 0, 57),
+    Size = Advanced and UDim2.new(0, 180, 0, 22) or UDim2.new(1, -16, 0, 24),
     AnchorPoint = Advanced and Vector2.new(0.5, 0) or Vector2.new(0, 0),
     Text = "save anims to workspace",
     TextColor3 = Color3.new(1, 1, 1),
     TextSize = 12,
     Font = Enum.Font.Gotham,
+    Text = "save anims to workspace", TextColor3 = Color3.new(1, 1, 1), TextSize = 12, Font = Enum.Font.Gotham,
 })
 if not Advanced then SaveButton.Size = UDim2.new(1, -16, 0, 24) end
 make("UICorner", SaveButton, { CornerRadius = UDim.new(0, 4) })
@@ -280,6 +347,7 @@ SaveButton.Activated:Connect(function()
             SaveButton.Text = "save anims to workspace"
             SaveButton.BackgroundColor3 = Color3.fromRGB(60, 180, 110)
         end
+        if SaveButton.Parent then SaveButton.Text, SaveButton.BackgroundColor3 = "save anims to workspace", Color3.fromRGB(60, 180, 110) end
     end)
 end)
 
@@ -293,8 +361,17 @@ local List = make("ScrollingFrame", Main, {
     ScrollBarThickness = 4,
 })
 make("UIListLayout", List, { Padding = UDim.new(0, Advanced and 8 or 1), SortOrder = Enum.SortOrder.LayoutOrder })
+make("UIListLayout", List, { Padding = UDim.new(0, Advanced and 10 or 1), SortOrder = Enum.SortOrder.LayoutOrder })
+local UiEntries, Filter, AdvancedCount = {}, "", 0
 
 local UiEntries, Filter = {}, ""
+local function sourceList(Entry)
+    local Sources = {}
+    for Source in pairs(Entry.Sources) do table.insert(Sources, Source) end
+    table.sort(Sources)
+    return table.concat(Sources, ", ")
+end
+
 local function addEntry(PlayerName, Name, Id, Source)
     local Key = (Advanced and Id or PlayerName .. ":" .. Id)
     if UiEntries[Key] then return end
@@ -312,6 +389,64 @@ local function addEntry(PlayerName, Name, Id, Source)
     Button.Activated:Connect(function() pcall(SetClipboard, Id) end)
     UiEntries[Key] = { Button = Button, PlayerName = string.lower(PlayerName) }
     if Filter ~= "" and not string.find(UiEntries[Key].PlayerName, Filter, 1, true) then Button.Visible = false end
+    local Key = Advanced and Id or PlayerName .. ":" .. Id
+    local Existing = UiEntries[Key]
+    if Existing then
+        if Advanced then
+            Existing.Plays += 1
+            Existing.Sources[Source] = true
+            Existing.Stats.Text = string.format("plays: %d | last: %s", Existing.Plays, os.date("%X"))
+            Existing.SourcesLabel.Text = "sources: " .. sourceList(Existing)
+        end
+        return
+    end
+
+    if Advanced then
+        AdvancedCount += 1
+        local Container = make("TextButton", List, {
+            BackgroundTransparency = 1, BorderSizePixel = 0, Size = UDim2.new(1, -6, 0, 64), Text = "", AutoButtonColor = false,
+        })
+        local Header = make("TextLabel", Container, {
+            BackgroundTransparency = 1, Size = UDim2.new(1, 0, 0, 15), Font = Enum.Font.Code, TextSize = 12,
+            TextColor3 = Color3.fromRGB(225, 225, 225), TextXAlignment = Enum.TextXAlignment.Left,
+            TextTruncate = Enum.TextTruncate.AtEnd, Text = "Animation: " .. Name,
+        })
+        local IdLabel = make("TextLabel", Container, {
+            BackgroundTransparency = 1, Position = UDim2.new(0, 0, 0, 15), Size = UDim2.new(1, 0, 0, 15),
+            Font = Enum.Font.Code, TextSize = 12, TextColor3 = Color3.fromRGB(225, 225, 225), TextXAlignment = Enum.TextXAlignment.Left,
+            Text = "rbxassetid://" .. Id,
+        })
+        local Stats = make("TextLabel", Container, {
+            BackgroundTransparency = 1, Position = UDim2.new(0, 0, 0, 30), Size = UDim2.new(1, 0, 0, 15),
+            Font = Enum.Font.Code, TextSize = 12, TextColor3 = Color3.fromRGB(225, 225, 225), TextXAlignment = Enum.TextXAlignment.Left,
+            Text = "plays: 1 | last: " .. os.date("%X"),
+        })
+        local SourcesLabel = make("TextLabel", Container, {
+            BackgroundTransparency = 1, Position = UDim2.new(0, 0, 0, 45), Size = UDim2.new(1, 0, 0, 15),
+            Font = Enum.Font.Code, TextSize = 12, TextColor3 = Color3.fromRGB(225, 225, 225), TextXAlignment = Enum.TextXAlignment.Left,
+            TextTruncate = Enum.TextTruncate.AtEnd, Text = "sources: " .. Source,
+        })
+        local Entry = { Button = Container, PlayerName = string.lower(PlayerName), Plays = 1, Sources = { [Source] = true }, Stats = Stats, SourcesLabel = SourcesLabel }
+        UiEntries[Key] = Entry
+        Container.Activated:Connect(function() pcall(SetClipboard, Id) end)
+    else
+        local Button = make("TextButton", List, {
+            BackgroundColor3 = Color3.fromRGB(35, 39, 42), BorderSizePixel = 0, Size = UDim2.new(1, 0, 0, 48),
+            Text = "", AutoButtonColor = true,
+        })
+        make("TextLabel", Button, {
+            BackgroundTransparency = 1, Position = UDim2.new(0, 8, 0, 4), Size = UDim2.new(1, -16, 0, 20),
+            Font = Enum.Font.Gotham, TextSize = 14, TextColor3 = Color3.fromRGB(245, 245, 245), TextXAlignment = Enum.TextXAlignment.Left,
+            TextTruncate = Enum.TextTruncate.AtEnd, Text = PlayerName .. " - Animation: " .. Name,
+        })
+        make("TextLabel", Button, {
+            BackgroundTransparency = 1, Position = UDim2.new(0, 8, 0, 24), Size = UDim2.new(1, -16, 0, 18),
+            Font = Enum.Font.Gotham, TextSize = 13, TextColor3 = Color3.fromRGB(180, 185, 195), TextXAlignment = Enum.TextXAlignment.Left,
+            Text = Id,
+        })
+        UiEntries[Key] = { Button = Button, PlayerName = string.lower(PlayerName) }
+        Button.Activated:Connect(function() pcall(SetClipboard, Id) end)
+    end
 end
 
 local function updateFilter()
@@ -333,6 +468,9 @@ local function scan(Player)
             local Name = resolveName(Id, Track, Animation)
             updateRecord(Player, Track, Id, Name)
             addEntry(Player.Name, Name, Id, "Workspace.Players." .. Player.Name .. ".Humanoid")
+            local Source = "Workspace.Players." .. Player.Name .. ".Humanoid"
+            if Track.Name and Track.Name ~= "" and Track.Name ~= "Animation" then Source = Source .. " (" .. Track.Name .. ")" end
+            addEntry(Player.Name, Name, Id, Source)
         end
     end
 end
@@ -343,6 +481,7 @@ task.spawn(function()
         local Count = 0
         for _ in pairs(RecordsById) do Count += 1 end
         Title.Text = string.format("Animation Tracker (%d unique)", Count)
+        if Title then Title.Text = string.format("Animation Tracker (%d unique)", AdvancedCount) end
         task.wait(0.25)
     end
 end)
