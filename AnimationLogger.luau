@@ -2,6 +2,7 @@ local Players = game:GetService("Players")
 local CoreGui = game:GetService("CoreGui")
 local UserInputService = game:GetService("UserInputService")
 local MarketplaceService = game:GetService("MarketplaceService")
+local HttpService = game:GetService("HttpService")
 local LocalPlayer = Players.LocalPlayer
 
 local GetEnv: any = (getgenv and getgenv()) or getfenv()
@@ -145,6 +146,108 @@ local function ResolveAnimationName(IdStr: string, TrackName: string?, AnimInsta
     return Fallback
 end
 
+local WriteFile: any = rawget(GetEnv, "writefile") or rawget(_G, "writefile")
+local AnimationRecords: { [string]: {
+    PlayerName: string,
+    DisplayName: string,
+    Id: string,
+    Name: string,
+    Weight: number,
+    WeightTarget: number,
+    Speed: number,
+    LastSeen: string,
+} } = {}
+
+local function UpdateAnimationRecord(Player: Player, Track: AnimationTrack, StrId: string, AnimName: string?)
+    local Signature = tostring(Player.UserId) .. "_" .. StrId
+    local Anim = Track.Animation
+    local Existing = AnimationRecords[Signature]
+    local ResolvedName = AnimName or ResolveAnimationName(StrId, Track.Name, Anim and Anim.Name)
+
+    AnimationRecords[Signature] = {
+        PlayerName = Player.Name,
+        DisplayName = Player.DisplayName,
+        Id = StrId,
+        Name = ResolvedName,
+        Weight = tonumber(Track.WeightCurrent) or 0,
+        WeightTarget = tonumber(Track.WeightTarget) or 0,
+        Speed = tonumber(Track.Speed) or 0,
+        LastSeen = os.date("!%Y-%m-%dT%H:%M:%SZ"),
+    }
+
+    if Existing and Existing.Name ~= "" and (ResolvedName == "Unknown" or ResolvedName == "Animation") then
+        AnimationRecords[Signature].Name = Existing.Name
+    end
+end
+
+local function SaveAnimationsToWorkspace(): (boolean, string)
+    if type(WriteFile) ~= "function" then
+        return false, "writefile unavailable"
+    end
+
+    local Entries = {}
+    for _, Record in pairs(AnimationRecords) do
+        table.insert(Entries, Record)
+    end
+
+    table.sort(Entries, function(A, B)
+        if A.PlayerName == B.PlayerName then
+            return A.Id < B.Id
+        end
+        return A.PlayerName < B.PlayerName
+    end)
+
+    local Payload = {
+        SavedAt = os.date("!%Y-%m-%dT%H:%M:%SZ"),
+        Count = #Entries,
+        Animations = Entries,
+    }
+
+    local Success = pcall(function()
+        WriteFile("animations.json", HttpService:JSONEncode(Payload))
+    end)
+
+    if not Success then
+        return false, "save failed"
+    end
+
+    return true, string.format("saved %d anims", #Entries)
+end
+
+local function CreateSaveButton(Parent: Instance, Position: UDim2, Size: UDim2): TextButton
+    local Button = Instance.new("TextButton")
+    Button.Name = "SaveAnimationsButton"
+    Button.Position = Position
+    Button.Size = Size
+    Button.BackgroundColor3 = Color3.fromRGB(60, 180, 110)
+    Button.BorderSizePixel = 0
+    Button.Font = Enum.Font.Gotham
+    Button.TextSize = 12
+    Button.TextColor3 = Color3.fromRGB(255, 255, 255)
+    Button.Text = "save anims to workspace"
+    Button.AutoButtonColor = true
+    Button.Parent = Parent
+
+    local Corner = Instance.new("UICorner")
+    Corner.CornerRadius = UDim.new(0, 4)
+    Corner.Parent = Button
+
+    Button.Activated:Connect(function()
+        local Success, Message = SaveAnimationsToWorkspace()
+        local PreviousText = Button.Text
+        Button.Text = Success and Message or ("error: " .. Message)
+        Button.BackgroundColor3 = Success and Color3.fromRGB(60, 180, 110) or Color3.fromRGB(190, 70, 70)
+        task.delay(1.5, function()
+            if Button and Button.Parent then
+                Button.Text = PreviousText
+                Button.BackgroundColor3 = Color3.fromRGB(60, 180, 110)
+            end
+        end)
+    end)
+
+    return Button
+end
+
 if GetEnv.InitAdvancedAnimationLogger then
     local MainFrame = Instance.new("Frame")
     MainFrame.Name = "MainFrame"
@@ -183,13 +286,15 @@ if GetEnv.InitAdvancedAnimationLogger then
     ScrollFrame.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
     ScrollFrame.BackgroundTransparency = 1
     ScrollFrame.BorderSizePixel = 0
-    ScrollFrame.Position = UDim2.new(0, 8, 0, 28)
-    ScrollFrame.Size = UDim2.new(1, -12, 1, -34)
+    ScrollFrame.Position = UDim2.new(0, 8, 0, 56)
+    ScrollFrame.Size = UDim2.new(1, -12, 1, -62)
     ScrollFrame.AutomaticCanvasSize = Enum.AutomaticSize.Y
     ScrollFrame.CanvasSize = UDim2.new(0, 0, 0, 0)
     ScrollFrame.ScrollBarThickness = 5
     ScrollFrame.ScrollBarImageColor3 = Color3.fromRGB(120, 120, 120)
     ScrollFrame.Parent = MainFrame
+
+    CreateSaveButton(MainFrame, UDim2.new(0, 8, 0, 30), UDim2.new(0, 180, 0, 22))
 
     local ListLayout = Instance.new("UIListLayout")
     ListLayout.Padding = UDim.new(0, 10)
@@ -214,6 +319,9 @@ if GetEnv.InitAdvancedAnimationLogger then
         if Track.Name and Track.Name ~= "" and Track.Name ~= "Animation" then
             SourcePath = SourcePath .. " (" .. Track.Name .. ")"
         end
+
+        local InitialResolved = ResolveAnimationName(StrId, Track.Name, Track.Animation and Track.Animation.Name)
+        UpdateAnimationRecord(Player, Track, StrId, InitialResolved)
 
         if AdvancedEntries[StrId] then
             local Entry = AdvancedEntries[StrId]
@@ -243,7 +351,6 @@ if GetEnv.InitAdvancedAnimationLogger then
         EntryContainer.AutoButtonColor = false
         EntryContainer.Parent = ScrollFrame
 
-        local InitialResolved = ResolveAnimationName(StrId, Track.Name, Track.Animation and Track.Animation.Name)
         local DisplayHeader = (string.find(InitialResolved, "^Animation:") and InitialResolved) or ("Animation: " .. InitialResolved)
 
         local Line1 = Instance.new("TextLabel")
@@ -428,13 +535,15 @@ else
     ScrollFrame.Name = "AnimationList"
     ScrollFrame.BackgroundColor3 = Color3.fromRGB(44, 47, 51)
     ScrollFrame.BorderSizePixel = 0
-    ScrollFrame.Position = UDim2.new(0, 0, 0, 54)
-    ScrollFrame.Size = UDim2.new(1, 0, 1, -54)
+    ScrollFrame.Position = UDim2.new(0, 0, 0, 86)
+    ScrollFrame.Size = UDim2.new(1, 0, 1, -86)
     ScrollFrame.AutomaticCanvasSize = Enum.AutomaticSize.Y
     ScrollFrame.CanvasSize = UDim2.new(0, 0, 0, 0)
     ScrollFrame.ScrollBarThickness = 4
     ScrollFrame.ScrollBarImageColor3 = Color3.fromRGB(32, 34, 37)
     ScrollFrame.Parent = MainFrame
+
+    CreateSaveButton(MainFrame, UDim2.new(0, 8, 0, 57), UDim2.new(1, -16, 0, 24))
 
     local ListLayout = Instance.new("UIListLayout")
     ListLayout.Padding = UDim.new(0, 1)
@@ -540,6 +649,8 @@ else
                         end
                     end
 
+                    UpdateAnimationRecord(Player, Track, StrId)
+
                     local Signature = Player.Name .. "_" .. StrId
                     if not AnimationTable[Signature] then
                         AnimationTable[Signature] = true
@@ -566,3 +677,5 @@ else
         end
     end)
 end
+
+
