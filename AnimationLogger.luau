@@ -1,7 +1,7 @@
 local function getService(Name)
-    local Getter = game and game.GetService
-    if type(Getter) ~= "function" then return nil end
-    local Success, Service = pcall(Getter, game, Name)
+    local Success, Service = pcall(function()
+        return game:GetService(Name)
+    end)
     return Success and Service or nil
 end
 
@@ -89,16 +89,11 @@ end
 
 local NameCache = {}
 local function resolveName(Id, Track, Animation)
-    if NameCache[Id] then return NameCache[Id] end
-    local Name = Track and Track.Name
-    if not Name or Name == "" or Name == "Animation" or Name == "Anim" then
-        Name = Animation and Animation.Name
     local TrackName = Track and Track.Name
     local AnimationName = Animation and Animation.Name
     if NameCache[Id] and NameCache[Id] ~= "" and NameCache[Id] ~= "Animation" then
         return NameCache[Id]
     end
-    if (not Name or Name == "") and MarketplaceService then
     if TrackName and TrackName ~= "" and TrackName ~= "Animation" and TrackName ~= "AnimationTrack" and TrackName ~= "Anim" then
         NameCache[Id] = TrackName
         return TrackName
@@ -111,14 +106,11 @@ local function resolveName(Id, Track, Animation)
         local Success, Info = pcall(function()
             return MarketplaceService:GetProductInfo(tonumber(Id), Enum.InfoType.Asset)
         end)
-        if Success and Info then Name = Info.Name end
         if Success and Info and Info.Name and Info.Name ~= "" then
             NameCache[Id] = Info.Name
             return Info.Name
         end
     end
-    NameCache[Id] = (Name and Name ~= "" and Name) or "Unknown"
-    return NameCache[Id]
     local Fallback = (TrackName and TrackName ~= "") and TrackName or AnimationName or "Unknown"
     NameCache[Id] = Fallback
     return Fallback
@@ -145,13 +137,11 @@ local function updateRecord(Player, Track, Id, Name)
     end
     local Record = {
         Id = Id,
-        Name = Name or resolveName(Id, Track, Animation),
         Name = ResolvedName,
         Source = "Workspace.Players." .. Player.Name .. ".Humanoid",
         Weight = tonumber(Track.WeightCurrent) or 0,
         Speed = tonumber(Track.Speed) or 0,
     }
-    Records[tostring(Player.UserId) .. ":" .. Id] = Record
     Records[Key] = Record
     RecordsById[Id] = Record
 end
